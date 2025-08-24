@@ -1,0 +1,759 @@
+import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+    getAuth, 
+    onAuthStateChanged, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    signOut,
+    signInAnonymously,
+    signInWithCustomToken
+} from 'firebase/auth';
+import { 
+    getFirestore, 
+    doc, 
+    setDoc, 
+    getDoc, 
+    collection, 
+    query, 
+    where, 
+    onSnapshot,
+    addDoc,
+    updateDoc,
+    deleteDoc,
+    writeBatch,
+    serverTimestamp,
+    getDocs,
+    limit
+} from 'firebase/firestore';
+import { setLogLevel } from 'firebase/firestore';
+
+// --- Íconos SVG para una mejor UI ---
+const icons = {
+  dashboard: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>,
+  sales: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
+  purchases: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>,
+  inventory: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>,
+  reports: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V7a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+  settings: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0 3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+  logout: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
+  plus: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>,
+  user: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>,
+  company: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
+  money: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
+  close: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>,
+  trash: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+  edit: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>,
+};
+
+
+// --- Configuración de Firebase ---
+// FIX: Se usa la configuración que provees, pero se mantiene la lógica para el entorno de Canvas.
+const firebaseConfig = typeof __firebase_config !== 'undefined' 
+    ? JSON.parse(__firebase_config) 
+    : {
+        apiKey: "AIzaSyA6pwcMnIn0y0HcKRWQhfpvPKwmbH-Jc4Y",
+        authDomain: "sofwipad-erp-contable.firebaseapp.com",
+        projectId: "sofwipad-erp-contable",
+        storageBucket: "sofwipad-erp-contable.appspot.com", // Corregido: suele ser .appspot.com
+        messagingSenderId: "902895181248",
+        appId: "1:902895181248:web:dfb884b039dedacfb3bc25",
+        measurementId: "G-D22KTMEDP6"
+      };
+
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-erp-app';
+
+// Inicializar Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+setLogLevel('debug');
+
+
+// --- Contexto de Autenticación y Datos ---
+const AppContext = createContext();
+
+const AppProvider = ({ children }) => {
+    const [user, setUser] = useState(null);
+    const [userData, setUserData] = useState(null);
+    const [companyData, setCompanyData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    const setupInitialChartOfAccounts = async (companyId) => {
+        const batch = writeBatch(db);
+        const chartOfAccountsRef = collection(db, `companies/${companyId}/chart_of_accounts`);
+
+        const accounts = [
+            { code: '1105', name: 'Caja', class: 'Activo' },
+            { code: '1110', name: 'Bancos', class: 'Activo' },
+            { code: '1305', name: 'Clientes', class: 'Activo' },
+            { code: '1435', name: 'Inventarios', class: 'Activo' },
+            { code: '2205', name: 'Proveedores Nacionales', class: 'Pasivo' },
+            { code: '2105', name: 'Obligaciones Financieras', class: 'Pasivo' },
+            { code: '3115', name: 'Aportes Sociales', class: 'Patrimonio' },
+            { code: '4135', name: 'Comercio al por mayor y al por menor', class: 'Ingreso' },
+            { code: '5105', name: 'Gastos de Personal', class: 'Gasto' },
+            { code: '5195', name: 'Diversos', class: 'Gasto' },
+            { code: '6135', name: 'Costo de Ventas', class: 'Costo' },
+        ];
+
+        accounts.forEach(account => {
+            const docRef = doc(chartOfAccountsRef, account.code);
+            batch.set(docRef, account);
+        });
+
+        try {
+            await batch.commit();
+            console.log(`Plan de cuentas inicial creado para la empresa: ${companyId}`);
+        } catch (err) {
+            console.error("Error creando el plan de cuentas inicial:", err);
+            setError("No se pudo completar la configuración inicial de la empresa.");
+        }
+    };
+
+
+    useEffect(() => {
+        const authAndSetup = async (firebaseUser) => {
+            if (firebaseUser && !firebaseUser.isAnonymous) {
+                const userDocRef = doc(db, `users`, firebaseUser.uid);
+                const userDocSnap = await getDoc(userDocRef);
+
+                if (userDocSnap.exists()) {
+                    const fetchedUserData = { uid: firebaseUser.uid, ...userDocSnap.data() };
+                    setUser(firebaseUser);
+                    setUserData(fetchedUserData);
+                    
+                    if (fetchedUserData.companyId) {
+                        const companyDocRef = doc(db, `companies`, fetchedUserData.companyId);
+                        const companyDocSnap = await getDoc(companyDocRef);
+                        if (companyDocSnap.exists()) {
+                            setCompanyData({ id: companyDocSnap.id, ...companyDocSnap.data() });
+
+                            const chartOfAccountsRef = collection(db, `companies/${fetchedUserData.companyId}/chart_of_accounts`);
+                            const q = query(chartOfAccountsRef, limit(1));
+                            const snapshot = await getDocs(q);
+                            if (snapshot.empty) {
+                                console.log("Plan de cuentas no encontrado, iniciando configuración...");
+                                await setupInitialChartOfAccounts(fetchedUserData.companyId);
+                            }
+
+                        } else {
+                            setError(`Error: La empresa con ID ${fetchedUserData.companyId} no fue encontrada.`);
+                            setCompanyData(null);
+                        }
+                    } else {
+                        setError("Usuario no está asociado a ninguna empresa.");
+                        setCompanyData(null);
+                    }
+                } else {
+                    setError("No se encontró el perfil del usuario en la base de datos.");
+                    await signOut(auth);
+                }
+            } else {
+                setUser(null);
+                setUserData(null);
+                setCompanyData(null);
+            }
+            setLoading(false);
+        };
+
+        // FIX: Se elimina la lógica de `handleInitialAuth` que causaba el error en desarrollo.
+        // onAuthStateChanged es suficiente para manejar el estado de autenticación.
+        const unsubscribe = onAuthStateChanged(auth, authAndSetup);
+
+        return () => unsubscribe();
+    }, []);
+
+    const value = { user, userData, companyData, loading, error, setError };
+
+    return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+};
+
+const useApp = () => useContext(AppContext);
+
+
+// --- Componentes Reutilizables de UI ---
+
+const Modal = ({ isOpen, onClose, title, children }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
+            <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-full overflow-y-auto">
+                <div className="flex justify-between items-center p-4 border-b">
+                    <h3 className="text-xl font-semibold text-gray-800">{title}</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                        {icons.close}
+                    </button>
+                </div>
+                <div className="p-6">
+                    {children}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const Input = ({ id, label, ...props }) => (
+    <div>
+        <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+        <input id={id} {...props} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+    </div>
+);
+
+const Select = ({ id, label, children, ...props }) => (
+    <div>
+        <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+        <select id={id} {...props} className="w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            {children}
+        </select>
+    </div>
+);
+
+const Button = ({ children, onClick, type = 'button', variant = 'primary', ...props }) => {
+    const baseClasses = "inline-flex items-center justify-center px-4 py-2 border rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2";
+    const variantClasses = {
+        primary: "border-transparent text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500",
+        secondary: "border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-indigo-500",
+        danger: "border-transparent text-white bg-red-600 hover:bg-red-700 focus:ring-red-500",
+    };
+    return (
+        <button type={type} onClick={onClick} className={`${baseClasses} ${variantClasses[variant]}`} {...props}>
+            {children}
+        </button>
+    );
+};
+
+const Card = ({ title, children, actions }) => (
+    <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        <div className="p-4 border-b flex justify-between items-center">
+            <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+            {actions && <div className="flex space-x-2">{actions}</div>}
+        </div>
+        <div className="p-4">
+            {children}
+        </div>
+    </div>
+);
+
+const Spinner = () => (
+    <div className="flex justify-center items-center h-full">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-indigo-500"></div>
+    </div>
+);
+
+const ErrorDisplay = ({ message }) => {
+    if (!message) return null;
+    return (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md relative my-4" role="alert">
+            <strong className="font-bold">Error: </strong>
+            <span className="block sm:inline">{message}</span>
+        </div>
+    );
+};
+
+
+// --- Módulo de Autenticación y Registro ---
+
+const AuthScreen = () => {
+    const [isLogin, setIsLogin] = useState(true);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [name, setName] = useState('');
+    const [companyName, setCompanyName] = useState('');
+    const [nit, setNit] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+        } catch (err) {
+            setError(err.message);
+        }
+        setLoading(false);
+    };
+
+    const handleRegister = async (e) => {
+        e.preventDefault();
+        if (password.length < 6) {
+            setError("La contraseña debe tener al menos 6 caracteres.");
+            return;
+        }
+        setLoading(true);
+        setError('');
+        try {
+            const companyRef = collection(db, 'companies');
+            const newCompanyDoc = await addDoc(companyRef, {
+                name: companyName,
+                NIT: nit,
+                createdAt: serverTimestamp(),
+                taxConfig: {
+                    iva: 19,
+                    ica: 0.414,
+                    retefuente: 2.5
+                }
+            });
+
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const user = userCredential.user;
+
+            await setDoc(doc(db, 'users', user.uid), {
+                name: name,
+                email: email,
+                companyId: newCompanyDoc.id,
+                role: 'Admin',
+                createdAt: serverTimestamp()
+            });
+            
+        } catch (err) {
+            setError(err.message);
+        }
+        setLoading(false);
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8">
+            <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+                <h1 className="text-3xl font-extrabold text-gray-900">Sofwipad ERP Contable</h1>
+                <p className="mt-2 text-sm text-gray-600">
+                    {isLogin ? 'Inicia sesión en tu cuenta' : 'Crea una nueva cuenta y empresa'}
+                </p>
+            </div>
+
+            <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+                <div className="bg-white py-8 px-4 shadow-lg sm:rounded-lg sm:px-10">
+                    <form className="space-y-6" onSubmit={isLogin ? handleLogin : handleRegister}>
+                        {!isLogin && (
+                            <>
+                                <Input id="name" name="name" type="text" label="Tu Nombre Completo" required value={name} onChange={e => setName(e.target.value)} />
+                                <Input id="companyName" name="companyName" type="text" label="Nombre de la Empresa" required value={companyName} onChange={e => setCompanyName(e.target.value)} />
+                                <Input id="nit" name="nit" type="text" label="NIT de la Empresa" required value={nit} onChange={e => setNit(e.target.value)} />
+                                <hr/>
+                            </>
+                        )}
+                        <Input id="email" name="email" type="email" label="Correo Electrónico" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} />
+                        <Input id="password" name="password" type="password" label="Contraseña" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />
+                        
+                        <ErrorDisplay message={error} />
+
+                        <div>
+                            <Button type="submit" variant="primary" className="w-full" disabled={loading}>
+                                {loading ? 'Procesando...' : (isLogin ? 'Iniciar Sesión' : 'Registrar Empresa')}
+                            </Button>
+                        </div>
+                    </form>
+
+                    <div className="mt-6">
+                        <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t border-gray-300" />
+                            </div>
+                            <div className="relative flex justify-center text-sm">
+                                <span className="px-2 bg-white text-gray-500">O</span>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 text-center">
+                            <button onClick={() => { setIsLogin(!isLogin); setError(''); }} className="font-medium text-indigo-600 hover:text-indigo-500">
+                                {isLogin ? '¿No tienes una cuenta? Regístrate' : '¿Ya tienes una cuenta? Inicia sesión'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+// --- Layout Principal de la Aplicación ---
+
+const AppLayout = () => {
+    const { userData, companyData } = useApp();
+    const [activeView, setActiveView] = useState('dashboard');
+
+    const handleLogout = async () => {
+        await signOut(auth);
+    };
+
+    const NavLink = ({ view, icon, children }) => (
+        <a
+            href="#"
+            onClick={(e) => { e.preventDefault(); setActiveView(view); }}
+            className={`flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+                activeView === view
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-gray-300 hover:bg-indigo-800 hover:text-white'
+            }`}
+        >
+            <span className="mr-3">{icon}</span>
+            {children}
+        </a>
+    );
+
+    const renderContent = () => {
+        switch (activeView) {
+            case 'dashboard': return <Dashboard />;
+            case 'sales': return <SalesModule />;
+            default: return <Dashboard />;
+        }
+    };
+    
+    const roleNames = {
+        'Admin': 'Administrador',
+        'Contador': 'Contador',
+        'Empleado': 'Empleado'
+    };
+
+    return (
+        <div className="flex h-screen bg-gray-100 font-sans">
+            <aside className="w-64 flex-shrink-0 bg-indigo-900 text-white flex flex-col">
+                <div className="h-16 flex items-center justify-center px-4 border-b border-indigo-800">
+                    <h2 className="text-xl font-bold">{companyData?.name || 'ERP Nube'}</h2>
+                </div>
+                <nav className="flex-1 px-4 py-4 space-y-2">
+                    <NavLink view="dashboard" icon={icons.dashboard}>Dashboard</NavLink>
+                    <NavLink view="sales" icon={icons.sales}>Ventas</NavLink>
+                    <NavLink view="purchases" icon={icons.purchases}>Compras</NavLink>
+                    <NavLink view="inventory" icon={icons.inventory}>Inventario</NavLink>
+                    <NavLink view="reports" icon={icons.reports}>Reportes</NavLink>
+                </nav>
+                <div className="px-4 py-4 border-t border-indigo-800">
+                     <div className="flex items-center mb-4">
+                        <div className="p-2 bg-indigo-700 rounded-full">{icons.user}</div>
+                        <div className="ml-3">
+                            <p className="text-sm font-medium text-white">{userData?.name}</p>
+                            <p className="text-xs text-indigo-300">{roleNames[userData?.role] || userData?.role}</p>
+                        </div>
+                    </div>
+                    <a
+                        href="#"
+                        onClick={handleLogout}
+                        className="flex items-center w-full px-4 py-2.5 text-sm font-medium rounded-lg text-gray-300 hover:bg-red-600 hover:text-white transition-colors"
+                    >
+                        <span className="mr-3">{icons.logout}</span>
+                        Cerrar Sesión
+                    </a>
+                </div>
+            </aside>
+
+            <main className="flex-1 overflow-y-auto">
+                <header className="bg-white shadow-sm h-16 flex items-center justify-between px-6">
+                    <h1 className="text-2xl font-semibold text-gray-800 capitalize">{activeView}</h1>
+                </header>
+                <div className="p-6">
+                    {renderContent()}
+                </div>
+            </main>
+        </div>
+    );
+};
+
+// --- Módulos ---
+
+const Dashboard = () => {
+    const { companyData } = useApp();
+    const kpis = [
+        { title: 'Ventas del Mes', value: '$12,500,000', icon: icons.sales, color: 'text-green-500' },
+        { title: 'Cuentas por Cobrar', value: '$4,200,000', icon: icons.money, color: 'text-yellow-500' },
+        { title: 'Compras del Mes', value: '$7,800,000', icon: icons.purchases, color: 'text-red-500' },
+        { title: 'Valor Inventario', value: '$25,000,000', icon: icons.inventory, color: 'text-blue-500' },
+    ];
+
+    return (
+        <div className="space-y-6">
+            <h2 className="text-xl font-semibold text-gray-700">Bienvenido a {companyData?.name}</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {kpis.map(kpi => (
+                    <div key={kpi.title} className="bg-white p-6 rounded-lg shadow-md flex items-center">
+                        <div className={`p-3 rounded-full bg-gray-100 ${kpi.color}`}>
+                           {React.cloneElement(kpi.icon, { className: "h-8 w-8" })}
+                        </div>
+                        <div className="ml-4">
+                            <p className="text-sm text-gray-500">{kpi.title}</p>
+                            <p className="text-2xl font-bold text-gray-800">{kpi.value}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card title="Ventas vs Compras (Últimos 6 meses)">
+                    <div className="h-64 bg-gray-200 rounded-md flex items-center justify-center">
+                        <p className="text-gray-500">Gráfico de barras aquí</p>
+                    </div>
+                </Card>
+                 <Card title="Actividades Recientes">
+                    <ul className="space-y-3">
+                        <li className="text-sm text-gray-600">Factura de venta #FV-002 creada.</li>
+                        <li className="text-sm text-gray-600">Pago a proveedor 'DistriPartes SAS' registrado.</li>
+                        <li className="text-sm text-gray-600">Nuevo producto 'Aceite 20W-50' añadido al inventario.</li>
+                    </ul>
+                </Card>
+            </div>
+        </div>
+    );
+};
+
+const SalesModule = () => {
+    const { companyData } = useApp();
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [invoices, setInvoices] = useState([]);
+    const [clients, setClients] = useState([]);
+    const [products, setProducts] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!companyData) return;
+        setLoading(true);
+        const q = query(collection(db, `companies/${companyData.id}/invoices_sales`));
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            const invoicesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setInvoices(invoicesData);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching invoices: ", error);
+            setLoading(false);
+        });
+        return () => unsubscribe();
+    }, [companyData]);
+    
+    useEffect(() => {
+        if (!companyData) return;
+        const clientsQuery = query(collection(db, `companies/${companyData.id}/clients`));
+        const productsQuery = query(collection(db, `companies/${companyData.id}/products`));
+
+        const unsubClients = onSnapshot(clientsQuery, snapshot => {
+            setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+        const unsubProducts = onSnapshot(productsQuery, snapshot => {
+            setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+
+        return () => {
+            unsubClients();
+            unsubProducts();
+        };
+    }, [companyData]);
+
+
+    const handleCreateInvoice = async (invoiceData) => {
+        if (!companyData) return;
+        try {
+            const invoicesRef = collection(db, `companies/${companyData.id}/invoices_sales`);
+            await addDoc(invoicesRef, {
+                ...invoiceData,
+                companyId: companyData.id,
+                createdAt: serverTimestamp(),
+                status: 'Pendiente'
+            });
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error("Error creating invoice: ", error);
+        }
+    };
+    
+    return (
+        <div>
+            <div className="flex justify-end mb-4">
+                <Button onClick={() => setIsModalOpen(true)}>
+                    {icons.plus} Crear Factura
+                </Button>
+            </div>
+
+            <Card title="Facturas de Venta">
+                {loading ? <Spinner /> : (
+                    <table className="w-full text-sm text-left text-gray-500">
+                        <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                            <tr>
+                                <th scope="col" className="px-6 py-3"># Factura</th>
+                                <th scope="col" className="px-6 py-3">Cliente</th>
+                                <th scope="col" className="px-6 py-3">Fecha</th>
+                                <th scope="col" className="px-6 py-3">Total</th>
+                                <th scope="col" className="px-6 py-3">Estado</th>
+                                <th scope="col" className="px-6 py-3">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {invoices.map(invoice => (
+                                <tr key={invoice.id} className="bg-white border-b hover:bg-gray-50">
+                                    <td className="px-6 py-4 font-medium text-gray-900">{invoice.id.substring(0, 8)}</td>
+                                    <td className="px-6 py-4">{clients.find(c => c.id === invoice.clientId)?.name || 'N/A'}</td>
+                                    <td className="px-6 py-4">{invoice.date?.seconds ? new Date(invoice.date.seconds * 1000).toLocaleDateString() : 'N/A'}</td>
+                                    <td className="px-6 py-4">${new Intl.NumberFormat('es-CO').format(invoice.total)}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                            invoice.status === 'Pagada' ? 'bg-green-100 text-green-800' : 
+                                            invoice.status === 'Vencida' ? 'bg-red-100 text-red-800' : 
+                                            'bg-yellow-100 text-yellow-800'
+                                        }`}>
+                                            {invoice.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 flex space-x-2">
+                                        <button className="text-indigo-600 hover:text-indigo-900">{icons.edit}</button>
+                                        <button className="text-red-600 hover:text-red-900">{icons.trash}</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </Card>
+
+            <InvoiceFormModal 
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onSubmit={handleCreateInvoice}
+                clients={clients}
+                products={products}
+            />
+        </div>
+    );
+};
+
+
+const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
+    const [clientId, setClientId] = useState('');
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [items, setItems] = useState([{ productId: '', quantity: 1, price: 0 }]);
+    const [total, setTotal] = useState(0);
+
+    const handleItemChange = (index, field, value) => {
+        const newItems = [...items];
+        newItems[index][field] = value;
+
+        if (field === 'productId') {
+            const product = products.find(p => p.id === value);
+            if (product) {
+                newItems[index].price = product.price || 0;
+            }
+        }
+
+        setItems(newItems);
+    };
+
+    const addItem = () => {
+        setItems([...items, { productId: '', quantity: 1, price: 0 }]);
+    };
+
+    const removeItem = (index) => {
+        const newItems = items.filter((_, i) => i !== index);
+        setItems(newItems);
+    };
+
+    useEffect(() => {
+        const calculateTotal = () => {
+            const subtotal = items.reduce((acc, item) => {
+                const quantity = parseFloat(item.quantity) || 0;
+                const price = parseFloat(item.price) || 0;
+                return acc + (quantity * price);
+            }, 0);
+            setTotal(subtotal);
+        };
+        calculateTotal();
+    }, [items]);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        const invoiceData = {
+            clientId,
+            date: new Date(date),
+            items: items.map(item => ({...item, quantity: Number(item.quantity), price: Number(item.price)})),
+            total,
+        };
+        onSubmit(invoiceData);
+        setClientId('');
+        setDate(new Date().toISOString().split('T')[0]);
+        setItems([{ productId: '', quantity: 1, price: 0 }]);
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Crear Nueva Factura de Venta">
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Select id="client" label="Cliente" value={clientId} onChange={e => setClientId(e.target.value)} required>
+                        <option value="">Seleccione un cliente</option>
+                        {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+                    </Select>
+                    <Input id="date" label="Fecha" type="date" value={date} onChange={e => setDate(e.target.value)} required />
+                </div>
+
+                <h4 className="text-md font-semibold pt-4 border-t mt-4">Ítems de la Factura</h4>
+                {items.map((item, index) => (
+                    <div key={index} className="grid grid-cols-12 gap-2 items-center">
+                        <div className="col-span-5">
+                            <Select value={item.productId} onChange={e => handleItemChange(index, 'productId', e.target.value)}>
+                                <option value="">Seleccione producto</option>
+                                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </Select>
+                        </div>
+                        <div className="col-span-2">
+                             <Input type="number" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', e.target.value)} placeholder="Cant." min="1" />
+                        </div>
+                        <div className="col-span-3">
+                             <Input type="number" value={item.price} onChange={e => handleItemChange(index, 'price', e.target.value)} placeholder="Precio" />
+                        </div>
+                        <div className="col-span-2 flex justify-end">
+                            <Button type="button" variant="danger" onClick={() => removeItem(index)}>
+                                {icons.trash}
+                            </Button>
+                        </div>
+                    </div>
+                ))}
+                
+                <Button type="button" variant="secondary" onClick={addItem}>Añadir Ítem</Button>
+
+                <div className="text-right pt-4 border-t mt-4">
+                    <p className="text-lg font-bold">Total: ${new Intl.NumberFormat('es-CO').format(total)}</p>
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                    <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
+                    <Button type="submit" variant="primary">Guardar Factura</Button>
+                </div>
+            </form>
+        </Modal>
+    );
+};
+
+
+
+// --- Componente Principal de la App ---
+
+export default function App() {
+    return (
+        <AppProvider>
+            <Main />
+        </AppProvider>
+    );
+}
+
+const Main = () => {
+    const { user, loading, error } = useApp();
+
+    if (loading) {
+        return (
+            <div className="h-screen w-screen flex items-center justify-center bg-gray-50">
+                <Spinner />
+            </div>
+        );
+    }
+    
+    if(error){
+        return (
+            <div className="h-screen w-screen flex items-center justify-center bg-gray-50 p-4">
+                <ErrorDisplay message={error}/>
+            </div>
+        )
+    }
+
+    // Si el usuario está autenticado y no hay errores, muestra el layout. Si no, la pantalla de login/registro.
+    // FIX: Se modifica la condición para que no dependa de `user.isAnonymous`
+    return user ? <AppLayout /> : <AuthScreen />;
+}

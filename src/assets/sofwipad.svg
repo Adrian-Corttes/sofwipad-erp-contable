@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="Sofwipad ERP-Contable">
+  <defs>
+    <linearGradient id="gradBlue" x1="0" x2="1">
+      <stop offset="0%" stop-color="#1e3a8a"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="gradGreen" x1="0" x2="1">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Fondo transparente -->
+  <rect width="100%" height="100%" fill="none"/>
+
+  <!-- Icono circular con check -->
+  <g transform="translate(60,30)" filter="none">
+    <circle cx="120" cy="120" r="110" fill="url(#gradBlue)" />
+    <g transform="translate(0,0)">
+      <path d="M85 125 L110 150 L175 85" fill="none" stroke="#ffffff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <!-- Sombra suave -->
+    <circle cx="120" cy="120" r="110" fill="none" filter="url(#softGlow)"/>
+  </g>
+
+  <!-- Texto principal -->
+  <g transform="translate(300,110)">
+    <text x="0" y="0" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="96" font-weight="800" fill="#0f172a">Sofwipad</text>
+    <text x="0" y="62" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="40" font-weight="700" fill="url(#gradGreen)">ERP-Contable</text>
+  </g>
+</svg>
