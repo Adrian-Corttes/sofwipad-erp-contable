@@ -1,0 +1,43 @@
+# ────────────────
+# Normalización de finales de línea
+# Fuerza LF en todos los archivos de texto
+* text=auto eol=lf
+
+# ────────────────
+# Archivos de código fuente
+*.js     text diff=javascript
+*.jsx    text diff=javascript
+*.ts     text diff=typescript
+*.tsx    text diff=typescript
+*.json   text
+*.css    text
+*.scss   text
+*.html   text
+*.md     text
+*.yml    text
+*.yaml   text
+
+# ────────────────
+# Archivos de configuración
+*.env    text
+*.gitattributes text
+*.gitignore    text
+
+# ────────────────
+# Archivos binarios (no se deben convertir)
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.mp4   binary
+*.mov   binary
+*.zip   binary
+*.gz    binary
+
+# ────────────────
+# Mejoras de GitHub Linguist (para estadísticas de repo)
+package-lock.json linguist-generated=true
+yarn.lock         linguist-generated=true
+pnpm-lock.yaml    linguist-generated=true
