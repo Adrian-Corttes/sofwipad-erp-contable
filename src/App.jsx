@@ -251,10 +251,7 @@ const ErrorDisplay = ({ message }) => {
         </div>
     );
 };
-
-
 // --- Módulo de Autenticación y Registro ---
-
 const AuthScreen = () => {
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState('');
@@ -368,93 +365,120 @@ const AuthScreen = () => {
         </div>
     );
 };
-
-
 // --- Layout Principal de la Aplicación ---
-
 const AppLayout = () => {
-    const { userData, companyData } = useApp();
-    const [activeView, setActiveView] = useState('dashboard');
+  const { userData, companyData } = useApp();
+  const [activeView, setActiveView] = useState("dashboard");
 
-    const handleLogout = async () => {
-        await signOut(auth);
-    };
+  const handleLogout = async () => {
+    await signOut(auth);
+  };
 
-    const NavLink = ({ view, icon, children }) => (
-        <a
-            href="#"
-            onClick={(e) => { e.preventDefault(); setActiveView(view); }}
-            className={`flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-                activeView === view
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-gray-300 hover:bg-indigo-800 hover:text-white'
-            }`}
-        >
-            <span className="mr-3">{icon}</span>
-            {children}
-        </a>
-    );
+  const NavLink = ({ view, icon, children }) => (
+    <a
+      href="#"
+      onClick={(e) => {
+        e.preventDefault();
+        setActiveView(view);
+      }}
+      className={`flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+        activeView === view
+          ? "bg-indigo-600 text-white"
+          : "text-gray-300 hover:bg-indigo-800 hover:text-white"
+      }`}
+    >
+      <span className="mr-3">{icon}</span>
+      {children}
+    </a>
+  );
 
-    const renderContent = () => {
-        switch (activeView) {
-            case 'dashboard': return <Dashboard />;
-            case 'sales': return <SalesModule />;
-            default: return <Dashboard />;
-        }
-    };
-    
-    const roleNames = {
-        'Admin': 'Administrador',
-        'Contador': 'Contador',
-        'Empleado': 'Empleado'
-    };
+  const renderContent = () => {
+    switch (activeView) {
+      case "dashboard":
+        return <Dashboard />;
+      case "sales":
+        // ✅ ahora pasamos setActiveView como prop
+        return <SalesModule setActiveView={setActiveView} />;
+      case "thirdparties":
+        return <ThirdPartiesModule />;
+      default:
+        return <Dashboard />;
+    }
+  };
 
-    return (
-        <div className="flex h-screen bg-gray-100 font-sans">
-            <aside className="w-64 flex-shrink-0 bg-indigo-900 text-white flex flex-col">
-                <div className="h-16 flex items-center justify-center px-4 border-b border-indigo-800">
-                    <h2 className="text-xl font-bold">{companyData?.name || 'ERP Nube'}</h2>
-                </div>
-                <nav className="flex-1 px-4 py-4 space-y-2">
-                    <NavLink view="dashboard" icon={icons.dashboard}>Dashboard</NavLink>
-                    <NavLink view="sales" icon={icons.sales}>Ventas</NavLink>
-                    <NavLink view="purchases" icon={icons.purchases}>Compras</NavLink>
-                    <NavLink view="inventory" icon={icons.inventory}>Inventario</NavLink>
-                    <NavLink view="reports" icon={icons.reports}>Reportes</NavLink>
-                </nav>
-                <div className="px-4 py-4 border-t border-indigo-800">
-                     <div className="flex items-center mb-4">
-                        <div className="p-2 bg-indigo-700 rounded-full">{icons.user}</div>
-                        <div className="ml-3">
-                            <p className="text-sm font-medium text-white">{userData?.name}</p>
-                            <p className="text-xs text-indigo-300">{roleNames[userData?.role] || userData?.role}</p>
-                        </div>
-                    </div>
-                    <a
-                        href="#"
-                        onClick={handleLogout}
-                        className="flex items-center w-full px-4 py-2.5 text-sm font-medium rounded-lg text-gray-300 hover:bg-red-600 hover:text-white transition-colors"
-                    >
-                        <span className="mr-3">{icons.logout}</span>
-                        Cerrar Sesión
-                    </a>
-                </div>
-            </aside>
+  const roleNames = {
+    Admin: "Administrador",
+    Contador: "Contador",
+    Empleado: "Empleado",
+  };
 
-            <main className="flex-1 overflow-y-auto">
-                <header className="bg-white shadow-sm h-16 flex items-center justify-between px-6">
-                    <h1 className="text-2xl font-semibold text-gray-800 capitalize">{activeView}</h1>
-                </header>
-                <div className="p-6">
-                    {renderContent()}
-                </div>
-            </main>
+  return (
+    <div className="flex h-screen bg-gray-100 font-sans">
+      {/* Sidebar */}
+      <aside className="w-64 flex-shrink-0 bg-indigo-900 text-white flex flex-col">
+        <div className="h-16 flex items-center justify-center px-4 border-b border-indigo-800">
+          <h2 className="text-xl font-bold">
+            {companyData?.name || "ERP Nube"}
+          </h2>
         </div>
-    );
+        <nav className="flex-1 px-4 py-4 space-y-2">
+          <NavLink view="dashboard" icon={icons.dashboard}>
+            Dashboard
+          </NavLink>
+          <NavLink view="sales" icon={icons.sales}>
+            Ventas
+          </NavLink>
+          <NavLink view="purchases" icon={icons.purchases}>
+            Compras
+          </NavLink>
+          <NavLink view="inventory" icon={icons.inventory}>
+            Inventario
+          </NavLink>
+          <NavLink view="reports" icon={icons.reports}>
+            Reportes
+          </NavLink>
+          <NavLink view="thirdparties" icon={icons.user}>
+            Clientes/Proveedores
+          </NavLink>
+        </nav>
+
+        {/* User Info + Logout */}
+        <div className="px-4 py-4 border-t border-indigo-800">
+          <div className="flex items-center mb-4">
+            <div className="p-2 bg-indigo-700 rounded-full">{icons.user}</div>
+            <div className="ml-3">
+              <p className="text-sm font-medium text-white">
+                {userData?.name}
+              </p>
+              <p className="text-xs text-indigo-300">
+                {roleNames[userData?.role] || userData?.role}
+              </p>
+            </div>
+          </div>
+          <a
+            href="#"
+            onClick={handleLogout}
+            className="flex items-center w-full px-4 py-2.5 text-sm font-medium rounded-lg text-gray-300 hover:bg-red-600 hover:text-white transition-colors"
+          >
+            <span className="mr-3">{icons.logout}</span>
+            Cerrar Sesión
+          </a>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto">
+        <header className="bg-white shadow-sm h-16 flex items-center justify-between px-6">
+          <h1 className="text-2xl font-semibold text-gray-800 capitalize">
+            {activeView}
+          </h1>
+        </header>
+        <div className="p-6">{renderContent()}</div>
+      </main>
+    </div>
+  );
 };
-
 // --- Módulos ---
-
 const Dashboard = () => {
     const { companyData } = useApp();
     const kpis = [
@@ -499,125 +523,431 @@ const Dashboard = () => {
         </div>
     );
 };
+// --- Módulo de Ventas ---
+const SalesModule = ({ setActiveView }) => {
+  const { companyData } = useApp();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [invoices, setInvoices] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-const SalesModule = () => {
-    const { companyData } = useApp();
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [invoices, setInvoices] = useState([]);
-    const [clients, setClients] = useState([]);
-    const [products, setProducts] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        if (!companyData) return;
-        setLoading(true);
-        const q = query(collection(db, `companies/${companyData.id}/invoices_sales`));
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const invoicesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setInvoices(invoicesData);
-            setLoading(false);
-        }, (error) => {
-            console.error("Error fetching invoices: ", error);
-            setLoading(false);
-        });
-        return () => unsubscribe();
-    }, [companyData]);
-    
-    useEffect(() => {
-        if (!companyData) return;
-        const clientsQuery = query(collection(db, `companies/${companyData.id}/clients`));
-        const productsQuery = query(collection(db, `companies/${companyData.id}/products`));
-
-        const unsubClients = onSnapshot(clientsQuery, snapshot => {
-            setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-        const unsubProducts = onSnapshot(productsQuery, snapshot => {
-            setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-
-        return () => {
-            unsubClients();
-            unsubProducts();
-        };
-    }, [companyData]);
-
-
-    const handleCreateInvoice = async (invoiceData) => {
-        if (!companyData) return;
-        try {
-            const invoicesRef = collection(db, `companies/${companyData.id}/invoices_sales`);
-            await addDoc(invoicesRef, {
-                ...invoiceData,
-                companyId: companyData.id,
-                createdAt: serverTimestamp(),
-                status: 'Pendiente'
-            });
-            setIsModalOpen(false);
-        } catch (error) {
-            console.error("Error creating invoice: ", error);
-        }
-    };
-    
-    return (
-        <div>
-            <div className="flex justify-end mb-4">
-                <Button onClick={() => setIsModalOpen(true)}>
-                    {icons.plus} Crear Factura
-                </Button>
-            </div>
-
-            <Card title="Facturas de Venta">
-                {loading ? <Spinner /> : (
-                    <table className="w-full text-sm text-left text-gray-500">
-                        <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-                            <tr>
-                                <th scope="col" className="px-6 py-3"># Factura</th>
-                                <th scope="col" className="px-6 py-3">Cliente</th>
-                                <th scope="col" className="px-6 py-3">Fecha</th>
-                                <th scope="col" className="px-6 py-3">Total</th>
-                                <th scope="col" className="px-6 py-3">Estado</th>
-                                <th scope="col" className="px-6 py-3">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {invoices.map(invoice => (
-                                <tr key={invoice.id} className="bg-white border-b hover:bg-gray-50">
-                                    <td className="px-6 py-4 font-medium text-gray-900">{invoice.id.substring(0, 8)}</td>
-                                    <td className="px-6 py-4">{clients.find(c => c.id === invoice.clientId)?.name || 'N/A'}</td>
-                                    <td className="px-6 py-4">{invoice.date?.seconds ? new Date(invoice.date.seconds * 1000).toLocaleDateString() : 'N/A'}</td>
-                                    <td className="px-6 py-4">${new Intl.NumberFormat('es-CO').format(invoice.total)}</td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                            invoice.status === 'Pagada' ? 'bg-green-100 text-green-800' : 
-                                            invoice.status === 'Vencida' ? 'bg-red-100 text-red-800' : 
-                                            'bg-yellow-100 text-yellow-800'
-                                        }`}>
-                                            {invoice.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 flex space-x-2">
-                                        <button className="text-indigo-600 hover:text-indigo-900">{icons.edit}</button>
-                                        <button className="text-red-600 hover:text-red-900">{icons.trash}</button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-            </Card>
-
-            <InvoiceFormModal 
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onSubmit={handleCreateInvoice}
-                clients={clients}
-                products={products}
-            />
-        </div>
+  useEffect(() => {
+    if (!companyData) return;
+    setLoading(true);
+    const q = query(collection(db, `companies/${companyData.id}/invoices_sales`));
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const invoicesData = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setInvoices(invoicesData);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error fetching invoices: ", error);
+        setLoading(false);
+      }
     );
+    return () => unsubscribe();
+  }, [companyData]);
+
+  useEffect(() => {
+    if (!companyData) return;
+    const clientsQuery = query(collection(db, `companies/${companyData.id}/thirdparties`)); // ← ahora usa thirdparties
+    const productsQuery = query(collection(db, `companies/${companyData.id}/products`));
+
+    const unsubClients = onSnapshot(clientsQuery, (snapshot) => {
+      setClients(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    });
+    const unsubProducts = onSnapshot(productsQuery, (snapshot) => {
+      setProducts(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    });
+
+    return () => {
+      unsubClients();
+      unsubProducts();
+    };
+  }, [companyData]);
+
+  const handleCreateInvoice = async (invoiceData) => {
+    if (!companyData) return;
+    try {
+      const invoicesRef = collection(
+        db,
+        `companies/${companyData.id}/invoices_sales`
+      );
+      await addDoc(invoicesRef, {
+        ...invoiceData,
+        companyId: companyData.id,
+        createdAt: serverTimestamp(),
+        status: "Pendiente",
+      });
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error("Error creating invoice: ", error);
+    }
+  };
+
+  return (
+    <div>
+      {/* Tabs estilo Siigo */}
+      <div className="border-b mb-4">
+        <nav className="flex space-x-6 text-sm font-medium text-gray-600">
+          <button className="border-b-2 border-blue-600 text-blue-600 pb-2">
+            Documentos de venta
+          </button>
+          <button className="pb-2 hover:text-blue-600">
+            Facturas recurrentes
+          </button>
+          <button className="pb-2 hover:text-blue-600">Clientes</button>
+          <button className="pb-2 hover:text-blue-600">
+            Seguimiento comercial
+          </button>
+        </nav>
+      </div>
+
+      {/* Acciones */}
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex space-x-2">
+          <input
+            type="text"
+            placeholder="Buscar por Identificación o Cliente"
+            className="border px-3 py-2 rounded-lg text-sm w-80"
+          />
+          <Button variant="secondary">{icons.filter} Filtros</Button>
+        </div>
+        <div className="flex space-x-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setActiveView("thirdparties")}
+          >
+            {icons.userPlus} Crear Cliente
+          </Button>
+          <Button onClick={() => setIsModalOpen(true)}>
+            {icons.plus} Crear Factura
+          </Button>
+        </div>
+      </div>
+
+      {/* Tabla de facturas */}
+      <Card title="Facturas de Venta">
+        {loading ? (
+          <Spinner />
+        ) : (
+          <table className="w-full text-sm text-left text-gray-500">
+            <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+              <tr>
+                <th className="px-6 py-3">Fecha</th>
+                <th className="px-6 py-3">Comprobante</th>
+                <th className="px-6 py-3">Identificación</th>
+                <th className="px-6 py-3">Cliente</th>
+                <th className="px-6 py-3">Total</th>
+                <th className="px-6 py-3">Moneda</th>
+                <th className="px-6 py-3">Estado</th>
+                <th className="px-6 py-3">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((invoice) => (
+                <tr
+                  key={invoice.id}
+                  className="bg-white border-b hover:bg-gray-50"
+                >
+                  <td className="px-6 py-4">
+                    {invoice.date?.seconds
+                      ? new Date(
+                          invoice.date.seconds * 1000
+                        ).toLocaleDateString()
+                      : "N/A"}
+                  </td>
+                  <td className="px-6 py-4 font-medium text-blue-600">
+                    FV-{invoice.id.substring(0, 6)}
+                  </td>
+                  <td className="px-6 py-4">
+                    {clients.find((c) => c.id === invoice.clientId)?.idNumber ||
+                      "N/A"}
+                  </td>
+                  <td className="px-6 py-4">
+                    {clients.find((c) => c.id === invoice.clientId)?.name ||
+                      "Consumidor Final"}
+                  </td>
+                  <td className="px-6 py-4">
+                    $
+                    {new Intl.NumberFormat("es-CO").format(invoice.total || 0)}
+                  </td>
+                  <td className="px-6 py-4">COP</td>
+                  <td className="px-6 py-4">
+                    <span
+                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        invoice.status === "Pagada"
+                          ? "bg-green-100 text-green-800"
+                          : invoice.status === "Vencida"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
+                      {invoice.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 flex space-x-2">
+                    <button className="text-indigo-600 hover:text-indigo-900">
+                      {icons.edit}
+                    </button>
+                    <button className="text-red-600 hover:text-red-900">
+                      {icons.trash}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {/* Modal Crear Factura */}
+      <InvoiceFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleCreateInvoice}
+        clients={clients}
+        products={products}
+      />
+    </div>
+  );
+};
+// --- Mòdulo de terceros ---
+const ThirdPartiesModule = () => {
+  const { companyData } = useApp();
+  const [thirdParties, setThirdParties] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    type: "cliente", 
+    personType: "persona", 
+    idType: "CC", 
+    name: "",
+    lastName: "",
+    tradeName: "",
+    city: "",
+    address: "",
+    email: "",
+    phone: "",
+  });
+
+  useEffect(() => {
+    if (!companyData) return;
+    const q = query(collection(db, `companies/${companyData.id}/thirdparties`));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setThirdParties(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, [companyData]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === "personType") {
+      setFormData((prev) => ({
+        ...prev,
+        idType: value === "persona" ? "CC" : "NIT",
+      }));
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!companyData) return;
+    try {
+      const ref = collection(db, `companies/${companyData.id}/thirdparties`);
+      await addDoc(ref, {
+        ...formData,
+        createdAt: serverTimestamp(),
+      });
+      setIsModalOpen(false);
+      setFormData({
+        type: "cliente",
+        personType: "persona",
+        idType: "CC",
+        name: "",
+        lastName: "",
+        tradeName: "",
+        city: "",
+        address: "",
+        email: "",
+        phone: "",
+      });
+    } catch (err) {
+      console.error("Error creando tercero:", err);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex justify-end mb-4">
+        <Button onClick={() => setIsModalOpen(true)}>
+          {icons.plus} Crear Tercero
+        </Button>
+      </div>
+
+      <Card title="Clientes / Proveedores / Otros">
+        <table className="w-full text-sm text-left text-gray-500">
+          <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+            <tr>
+              <th className="px-6 py-3">Nombre</th>
+              <th className="px-6 py-3">Tipo</th>
+              <th className="px-6 py-3">Persona</th>
+              <th className="px-6 py-3">Ciudad</th>
+              <th className="px-6 py-3">Teléfono</th>
+              <th className="px-6 py-3">Correo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {thirdParties.map((t) => (
+              <tr key={t.id} className="bg-white border-b hover:bg-gray-50">
+                <td className="px-6 py-4 font-medium text-gray-900">
+                  {t.name} {t.lastName}
+                </td>
+                <td className="px-6 py-4 capitalize">{t.type}</td>
+                <td className="px-6 py-4 capitalize">{t.personType}</td>
+                <td className="px-6 py-4">{t.city}</td>
+                <td className="px-6 py-4">{t.phone}</td>
+                <td className="px-6 py-4">{t.email}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+
+      {/* Modal de creación */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Encabezado con botones */}
+          <div className="flex justify-between items-center border-b pb-3 mb-4">
+            <h2 className="text-xl font-semibold">Crear un tercero</h2>
+            <div className="space-x-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setIsModalOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" variant="primary">
+                Guardar
+              </Button>
+            </div>
+          </div>
+
+          {/* Tipo de registro */}
+          <div className="bg-gray-50 p-4 rounded-lg border">
+            <p className="font-medium mb-2">Tipo de tercero</p>
+            <div className="flex space-x-6">
+              {["cliente", "proveedor", "otro"].map((option) => (
+                <label key={option} className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    name="type"
+                    value={option}
+                    checked={formData.type === option}
+                    onChange={handleChange}
+                    className="h-5 w-5 text-blue-600"
+                  />
+                  <span className="capitalize">{option}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Datos básicos */}
+          <div className="grid grid-cols-2 gap-4 bg-white p-4 rounded-lg border">
+            <Select
+              id="personType"
+              name="personType"
+              label="Tipo de Persona"
+              value={formData.personType}
+              onChange={handleChange}
+            >
+              <option value="persona">Persona</option>
+              <option value="empresa">Empresa</option>
+            </Select>
+            <Select
+              id="idType"
+              name="idType"
+              label="Tipo de Identificación"
+              value={formData.idType}
+              onChange={handleChange}
+            >
+              {formData.personType === "persona" ? (
+                <option value="CC">Cédula de Ciudadanía (CC)</option>
+              ) : (
+                <option value="NIT">NIT</option>
+              )}
+            </Select>
+
+            <Input
+              id="name"
+              name="name"
+              label="Nombres"
+              value={formData.name}
+              onChange={handleChange}
+              required
+            />
+            {formData.personType === "persona" && (
+              <Input
+                id="lastName"
+                name="lastName"
+                label="Apellidos"
+                value={formData.lastName}
+                onChange={handleChange}
+              />
+            )}
+            <Input
+              id="tradeName"
+              name="tradeName"
+              label="Nombre Comercial"
+              value={formData.tradeName}
+              onChange={handleChange}
+            />
+            <Input
+              id="city"
+              name="city"
+              label="Ciudad"
+              value={formData.city}
+              onChange={handleChange}
+            />
+            <Input
+              id="address"
+              name="address"
+              label="Dirección"
+              value={formData.address}
+              onChange={handleChange}
+            />
+            <Input
+              id="phone"
+              name="phone"
+              label="Teléfono"
+              value={formData.phone}
+              onChange={handleChange}
+            />
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              label="Correo Electrónico"
+              value={formData.email}
+              onChange={handleChange}
+            />
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
 };
 
-
+// Modal Crear Factura
 const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
     const [clientId, setClientId] = useState('');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
