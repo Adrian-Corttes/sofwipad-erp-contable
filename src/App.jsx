@@ -31,8 +31,10 @@ import {
   serverTimestamp,
   getDocs,
   limit,
+  increment,
 } from "firebase/firestore";
 import { setLogLevel } from "firebase/firestore";
+import { Edit, Trash } from "lucide-react";
 
 // --- Íconos SVG para una mejor UI ---
 const icons = {
@@ -65,6 +67,22 @@ const icons = {
         strokeLinejoin="round"
         strokeWidth={2}
         d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+      />
+    </svg>
+  ),
+  products: (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-6 w-6"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 7.5L12 3l9 4.5M3 7.5v9l9 4.5m9-13.5v9l-9 4.5m0-9l9-4.5m-9 4.5L3 7.5"
       />
     </svg>
   ),
@@ -266,6 +284,17 @@ const icons = {
       />
     </svg>
   ),
+    filter: (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M6 12h12M10 20h4" />
+    </svg>
+  ),
+  userPlus: (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 14a4 4 0 10-8 0 4 4 0 008 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14v7m-5-3h10M16 3h5m-2.5-2.5V5.5" />
+    </svg>
+  ),
 };
 
 // --- Configuración de Firebase ---
@@ -293,7 +322,7 @@ setLogLevel("debug");
 
 // --- Contexto de Autenticación y Datos ---
 const AppContext = createContext();
-
+// -- Autenticaciòn y Configuración Inicial ---
 const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
@@ -414,7 +443,7 @@ const AppProvider = ({ children }) => {
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
-
+// -- Hook para usar el contexto de la aplicación --
 const useApp = () => useContext(AppContext);
 
 // --- Componentes Reutilizables de UI ---
@@ -437,7 +466,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
     </div>
   );
 };
-
+// --- Form Inputs ---
 const Input = ({ id, label, ...props }) => (
   <div>
     <label
@@ -748,6 +777,8 @@ const AppLayout = () => {
         return <SalesModule setActiveView={setActiveView} />;
       case "thirdparties":
         return <ThirdPartiesModule />;
+      case "products":
+        return <ProductsServicesModule />;
       default:
         return <Dashboard />;
     }
@@ -786,6 +817,9 @@ const AppLayout = () => {
           </NavLink>
           <NavLink view="thirdparties" icon={icons.user}>
             Clientes/Proveedores
+          </NavLink>
+          <NavLink view="products" icon={icons.products}>
+            Productos/Servicios
           </NavLink>
         </nav>
 
@@ -903,11 +937,13 @@ const Dashboard = () => {
 const SalesModule = ({ setActiveView }) => {
   const { companyData } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState(null); // ✅ si hay factura en edición
   const [invoices, setInvoices] = useState([]);
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // --- Obtener facturas ---
   useEffect(() => {
     if (!companyData) return;
     setLoading(true);
@@ -932,11 +968,12 @@ const SalesModule = ({ setActiveView }) => {
     return () => unsubscribe();
   }, [companyData]);
 
+  // --- Obtener clientes y productos ---
   useEffect(() => {
     if (!companyData) return;
     const clientsQuery = query(
       collection(db, `companies/${companyData.id}/thirdparties`)
-    ); // ← ahora usa thirdparties
+    );
     const productsQuery = query(
       collection(db, `companies/${companyData.id}/products`)
     );
@@ -954,6 +991,7 @@ const SalesModule = ({ setActiveView }) => {
     };
   }, [companyData]);
 
+  // --- Crear factura ---
   const handleCreateInvoice = async (invoiceData) => {
     if (!companyData) return;
     try {
@@ -970,6 +1008,38 @@ const SalesModule = ({ setActiveView }) => {
       setIsModalOpen(false);
     } catch (error) {
       console.error("Error creating invoice: ", error);
+    }
+  };
+
+  // --- Editar factura ---
+  const handleUpdateInvoice = async (invoiceData) => {
+    if (!companyData || !editingInvoice) return;
+    try {
+      const invoiceRef = doc(
+        db,
+        `companies/${companyData.id}/invoices_sales/${editingInvoice.id}`
+      );
+      await updateDoc(invoiceRef, {
+        ...invoiceData,
+        updatedAt: serverTimestamp(),
+      });
+      setEditingInvoice(null);
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error("Error updating invoice: ", error);
+    }
+  };
+
+  // --- Eliminar factura ---
+  const handleDeleteInvoice = async (id) => {
+    if (!companyData) return;
+    if (!window.confirm("¿Seguro que deseas eliminar esta factura?")) return;
+    try {
+      await deleteDoc(
+        doc(db, `companies/${companyData.id}/invoices_sales/${id}`)
+      );
+    } catch (error) {
+      console.error("Error deleting invoice: ", error);
     }
   };
 
@@ -1009,7 +1079,12 @@ const SalesModule = ({ setActiveView }) => {
           >
             {icons.userPlus} Crear Cliente
           </Button>
-          <Button onClick={() => setIsModalOpen(true)}>
+          <Button
+            onClick={() => {
+              setEditingInvoice(null);
+              setIsModalOpen(true);
+            }}
+          >
             {icons.plus} Crear Factura
           </Button>
         </div>
@@ -1075,10 +1150,21 @@ const SalesModule = ({ setActiveView }) => {
                     </span>
                   </td>
                   <td className="px-6 py-4 flex space-x-2">
-                    <button className="text-indigo-600 hover:text-indigo-900">
+                    {/* Editar */}
+                    <button
+                      className="text-indigo-600 hover:text-indigo-900"
+                      onClick={() => {
+                        setEditingInvoice(invoice);
+                        setIsModalOpen(true);
+                      }}
+                    >
                       {icons.edit}
                     </button>
-                    <button className="text-red-600 hover:text-red-900">
+                    {/* Eliminar */}
+                    <button
+                      className="text-red-600 hover:text-red-900"
+                      onClick={() => handleDeleteInvoice(invoice.id)}
+                    >
                       {icons.trash}
                     </button>
                   </td>
@@ -1089,249 +1175,378 @@ const SalesModule = ({ setActiveView }) => {
         )}
       </Card>
 
-      {/* Modal Crear Factura */}
+      {/* Modal Crear/Editar Factura */}
       <InvoiceFormModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handleCreateInvoice}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingInvoice(null);
+        }}
+        onSubmit={editingInvoice ? handleUpdateInvoice : handleCreateInvoice}
         clients={clients}
         products={products}
+        initialData={editingInvoice} // ✅ si hay factura en edición
       />
     </div>
   );
 };
-// --- Mòdulo de terceros ---
+// --- Módulo de Terceros (Clientes/Proveedores/Otros) ---
 const ThirdPartiesModule = () => {
   const { companyData } = useApp();
-  const [thirdParties, setThirdParties] = useState([]);
+
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    type: "cliente",
-    personType: "persona",
-    idType: "CC",
-    idNumber: "", // <- NUEVO CAMPO
+  const [editingId, setEditingId] = useState(null);
+
+  const [search, setSearch] = useState("");
+
+  // formulario
+  const [form, setForm] = useState({
+    type: "cliente",            // cliente | proveedor | otro
+    personType: "persona",      // persona | empresa
+    idType: "CC",               // CC | NIT (según personType)
+    idNumber: "",
     name: "",
     lastName: "",
-    tradeName: "",
+    tradeName: "",              // nombre comercial (para empresa o alias)
     city: "",
     address: "",
-    email: "",
     phone: "",
+    email: "",
+    createdAt: null,
   });
 
+  // helpers
+  const fullName = (r) =>
+    r.personType === "empresa"
+      ? (r.tradeName || `${r.name}` || "")
+      : `${r.name || ""} ${r.lastName || ""}`.trim();
+
+  const idTypeLabel = (v) => (v === "NIT" ? "NIT" : "CC");
+
+  // carga
   useEffect(() => {
     if (!companyData) return;
     const q = query(collection(db, `companies/${companyData.id}/thirdparties`));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setThirdParties(
-        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      );
-    });
-    return () => unsubscribe();
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setRows(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Error loading third parties:", err);
+        setLoading(false);
+      }
+    );
+    return () => unsub();
   }, [companyData]);
 
+  // filtro de búsqueda
+  const filtered = rows.filter((r) => {
+    const t = search.toLowerCase();
+    return (
+      (r.idNumber || "").toLowerCase().includes(t) ||
+      (r.name || "").toLowerCase().includes(t) ||
+      (r.lastName || "").toLowerCase().includes(t) ||
+      (r.tradeName || "").toLowerCase().includes(t) ||
+      (r.email || "").toLowerCase().includes(t)
+    );
+  });
+
+  const openCreate = () => {
+    setEditingId(null);
+    setForm({
+      type: "cliente",
+      personType: "persona",
+      idType: "CC",
+      idNumber: "",
+      name: "",
+      lastName: "",
+      tradeName: "",
+      city: "",
+      address: "",
+      phone: "",
+      email: "",
+      createdAt: null,
+    });
+    setIsModalOpen(true);
+  };
+
+  const openEdit = (row) => {
+    setEditingId(row.id);
+    setForm({
+      type: row.type || "cliente",
+      personType: row.personType || "persona",
+      idType: row.idType || (row.personType === "empresa" ? "NIT" : "CC"),
+      idNumber: row.idNumber || "",
+      name: row.name || "",
+      lastName: row.lastName || "",
+      tradeName: row.tradeName || "",
+      city: row.city || "",
+      address: row.address || "",
+      phone: row.phone || "",
+      email: row.email || "",
+      createdAt: row.createdAt || null,
+    });
+    setIsModalOpen(true);
+  };
+
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+
+    // si cambia el tipo de persona, ajustar idType automáticamente
     if (name === "personType") {
-      setFormData((prev) => ({
-        ...prev,
-        idType: value === "persona" ? "CC" : "NIT",
-        idNumber: "", // resetear cuando cambie persona/empresa
+      setForm((p) => ({
+        ...p,
+        personType: value,
+        idType: value === "empresa" ? "NIT" : "CC",
       }));
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!companyData) return;
+
+    const payload = {
+      type: form.type,                 // cliente | proveedor | otro
+      personType: form.personType,     // persona | empresa
+      idType: form.idType,             // CC | NIT
+      idNumber: String(form.idNumber).trim(),
+      name: String(form.name).trim(),
+      lastName: String(form.lastName).trim(),
+      tradeName: String(form.tradeName).trim(),
+      city: String(form.city).trim(),
+      address: String(form.address).trim(),
+      phone: String(form.phone).trim(),
+      email: String(form.email).trim(),
+      createdAt: editingId ? form.createdAt : serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    try {
+      if (editingId) {
+        await updateDoc(
+          doc(db, `companies/${companyData.id}/thirdparties/${editingId}`),
+          payload
+        );
+      } else {
+        await addDoc(
+          collection(db, `companies/${companyData.id}/thirdparties`),
+          payload
+        );
+      }
+      setIsModalOpen(false);
+      setEditingId(null);
+    } catch (err) {
+      console.error("Error saving third party", err);
+      alert("⚠️ Error guardando tercero: " + err.message);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleDelete = async (row) => {
     if (!companyData) return;
+    if (!confirm(`¿Eliminar "${fullName(row)}"? Esta acción no se puede deshacer.`)) return;
     try {
-      const ref = collection(db, `companies/${companyData.id}/thirdparties`);
-      await addDoc(ref, {
-        ...formData,
-        createdAt: serverTimestamp(),
-      });
-      setIsModalOpen(false);
-      setFormData({
-        type: "cliente",
-        personType: "persona",
-        idType: "CC",
-        idNumber: "",
-        name: "",
-        lastName: "",
-        tradeName: "",
-        city: "",
-        address: "",
-        email: "",
-        phone: "",
-      });
+      await deleteDoc(doc(db, `companies/${companyData.id}/thirdparties/${row.id}`));
     } catch (err) {
-      console.error("Error creando tercero:", err);
+      console.error("Error deleting third party", err);
+      alert("⚠️ Error eliminando: " + err.message);
     }
   };
 
   return (
     <div>
-      <div className="flex justify-end mb-4">
-        <Button onClick={() => setIsModalOpen(true)}>
-          {icons.plus} Crear Tercero
+      {/* acciones superiores */}
+      <div className="flex justify-between items-center mb-4">
+        <input
+          type="text"
+          placeholder="Buscar por identificación, nombre o correo"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border px-3 py-2 rounded-lg text-sm w-80"
+        />
+        <Button onClick={openCreate}>
+          {icons.plus} Nuevo Tercero
         </Button>
       </div>
 
-      <Card title="Clientes / Proveedores / Otros">
-        <table className="w-full text-sm text-left text-gray-500">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-            <tr>
-              <th className="px-6 py-3">Nombre</th>
-              <th className="px-6 py-3">Tipo</th>
-              <th className="px-6 py-3">Persona</th>
-              <th className="px-6 py-3">Identificación</th>
-              <th className="px-6 py-3">Ciudad</th>
-              <th className="px-6 py-3">Teléfono</th>
-              <th className="px-6 py-3">Correo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {thirdParties.map((t) => (
-              <tr key={t.id} className="bg-white border-b hover:bg-gray-50">
-                <td className="px-6 py-4 font-medium text-gray-900">
-                  {t.name} {t.lastName}
-                </td>
-                <td className="px-6 py-4 capitalize">{t.type}</td>
-                <td className="px-6 py-4 capitalize">{t.personType}</td>
-                <td className="px-6 py-4">
-                  {t.idType}: {t.idNumber}
-                </td>
-                <td className="px-6 py-4">{t.city}</td>
-                <td className="px-6 py-4">{t.phone}</td>
-                <td className="px-6 py-4">{t.email}</td>
+      {/* tabla */}
+      <Card title="Terceros (Clientes, Proveedores y Otros)">
+        {loading ? (
+          <Spinner />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left text-gray-500">
+            <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+              <tr>
+                <th className="px-6 py-3">Tipo</th>
+                <th className="px-6 py-3">Tipo Persona</th>
+                <th className="px-6 py-3">Identificación</th>
+                <th className="px-6 py-3">Nombre / Razón social</th>
+                <th className="px-6 py-3">Ciudad</th>
+                <th className="px-6 py-3">Teléfono</th>
+                <th className="px-6 py-3">Correo</th>
+                <th className="px-6 py-3">Acciones</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.id} className="bg-white border-b hover:bg-gray-50">
+                  <td className="px-6 py-3 capitalize">{r.type}</td>
+                  <td className="px-6 py-3 capitalize">{r.personType}</td>
+                  <td className="px-6 py-3">
+                    {idTypeLabel(r.idType)} {r.idNumber}
+                  </td>
+                  <td className="px-6 py-3">{fullName(r)}</td>
+                  <td className="px-6 py-3">{r.city}</td>
+                  <td className="px-6 py-3">{r.phone}</td>
+                  <td className="px-6 py-3">{r.email}</td>
+                  <td className="px-6 py-3 flex space-x-2">
+                    <button
+                      className="text-indigo-600 hover:text-indigo-900"
+                      onClick={() => openEdit(r)}
+                    >
+                      {icons.edit}
+                    </button>
+                    <button
+                      className="text-red-600 hover:text-red-900"
+                      onClick={() => handleDelete(r)}
+                    >
+                      {icons.trash}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan="8" className="text-center py-4 text-gray-500">
+                    No se encontraron resultados
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          </div>
+        )}
       </Card>
 
-      {/* Modal de creación */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Encabezado con botones */}
-          <div className="flex justify-between items-center border-b pb-3 mb-4">
-            <h2 className="text-xl font-semibold">Crear un tercero</h2>
-            <div className="space-x-2">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setIsModalOpen(false)}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit" variant="primary">
-                Guardar
-              </Button>
-            </div>
-          </div>
-
-          {/* Tipo de registro */}
-          <div className="bg-gray-50 p-4 rounded-lg border">
-            <p className="font-medium mb-2">Tipo de tercero</p>
-            <div className="flex space-x-6">
-              {["cliente", "proveedor", "otro"].map((option) => (
-                <label key={option} className="flex items-center space-x-2">
+      {/* Modal Crear/Editar */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={`${editingId ? "Editar" : "Crear"} Tercero`}
+      >
+        <form onSubmit={handleSave} className="space-y-6">
+          {/* Tipo de tercero */}
+          <div className="border rounded-lg p-4">
+            <h3 className="font-semibold mb-2">Tipo de tercero</h3>
+            <div className="flex items-center space-x-6">
+              {["cliente", "proveedor", "otro"].map((t) => (
+                <label key={t} className="flex items-center space-x-2 capitalize">
                   <input
                     type="radio"
                     name="type"
-                    value={option}
-                    checked={formData.type === option}
+                    value={t}
+                    checked={form.type === t}
                     onChange={handleChange}
-                    className="h-5 w-5 text-blue-600"
                   />
-                  <span className="capitalize">{option}</span>
+                  <span>{t}</span>
                 </label>
               ))}
             </div>
           </div>
 
-          {/* Datos básicos */}
-          <div className="grid grid-cols-2 gap-4 bg-white p-4 rounded-lg border">
+          {/* Datos de identificación */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Select
               id="personType"
               name="personType"
               label="Tipo de Persona"
-              value={formData.personType}
+              value={form.personType}
               onChange={handleChange}
             >
               <option value="persona">Persona</option>
               <option value="empresa">Empresa</option>
             </Select>
+
             <Select
               id="idType"
               name="idType"
               label="Tipo de Identificación"
-              value={formData.idType}
+              value={form.idType}
               onChange={handleChange}
             >
-              {formData.personType === "persona" ? (
-                <option value="CC">Cédula de Ciudadanía (CC)</option>
-              ) : (
+              {form.personType === "empresa" ? (
                 <option value="NIT">NIT</option>
+              ) : (
+                <option value="CC">Cédula de Ciudadanía (CC)</option>
               )}
             </Select>
 
-            {/* Campo para número de identificación */}
             <Input
               id="idNumber"
               name="idNumber"
-              label={
-                formData.idType === "CC" ? "Número de Cédula" : "Número de NIT"
-              }
-              value={formData.idNumber}
+              label={form.personType === "empresa" ? "Número de NIT" : "Número de Cédula"}
+              value={form.idNumber}
+              onChange={handleChange}
+              required
+            />
+            <Input
+              id="name"
+              name="name"
+              label={form.personType === "empresa" ? "Razón Social / Nombre Legal" : "Nombres"}
+              value={form.name}
               onChange={handleChange}
               required
             />
 
-            <Input
-              id="name"
-              name="name"
-              label="Nombres"
-              value={formData.name}
-              onChange={handleChange}
-              required
-            />
-            {formData.personType === "persona" && (
+            {form.personType === "persona" ? (
               <Input
                 id="lastName"
                 name="lastName"
                 label="Apellidos"
-                value={formData.lastName}
+                value={form.lastName}
+                onChange={handleChange}
+              />
+            ) : (
+              <Input
+                id="tradeName"
+                name="tradeName"
+                label="Nombre Comercial"
+                value={form.tradeName}
                 onChange={handleChange}
               />
             )}
-            <Input
-              id="tradeName"
-              name="tradeName"
-              label="Nombre Comercial"
-              value={formData.tradeName}
-              onChange={handleChange}
-            />
+
             <Input
               id="city"
               name="city"
               label="Ciudad"
-              value={formData.city}
+              value={form.city}
               onChange={handleChange}
             />
             <Input
               id="address"
               name="address"
               label="Dirección"
-              value={formData.address}
+              value={form.address}
               onChange={handleChange}
             />
             <Input
               id="phone"
               name="phone"
               label="Teléfono"
-              value={formData.phone}
+              value={form.phone}
               onChange={handleChange}
             />
             <Input
@@ -1339,9 +1554,426 @@ const ThirdPartiesModule = () => {
               name="email"
               type="email"
               label="Correo Electrónico"
-              value={formData.email}
+              value={form.email}
               onChange={handleChange}
             />
+
+            {/* Fecha creación (solo en edición) */}
+            {editingId && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Fecha de creación
+                </label>
+                <input
+                  type="text"
+                  value={
+                    form.createdAt
+                      ? new Date(form.createdAt.seconds * 1000).toLocaleString("es-CO")
+                      : ""
+                  }
+                  readOnly
+                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Botones */}
+          <div className="flex justify-end space-x-2">
+            <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" variant="primary">
+              {editingId ? "Actualizar" : "Guardar"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+};
+// --- Módulo de Productos / Servicios ---
+const ProductsServicesModule = () => {
+  const { companyData } = useApp();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [search, setSearch] = useState(""); // 🔎 estado de búsqueda
+  const [form, setForm] = useState({
+    type: "producto", // producto | servicio
+    code: "",
+    description: "",
+    quantity: 0,
+    unit: "unidades",
+    unitValue: 0,
+    taxed: true,
+    iva: 19,
+    createdAt: null,
+  });
+
+  const units = ["unidades", "centímetros", "metros", "kilogramos", "litros"];
+
+  // Cargar productos/servicios
+  useEffect(() => {
+    if (!companyData) return;
+    const q = query(collection(db, `companies/${companyData.id}/products`));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setItems(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [companyData]);
+
+  // 🔎 Filtrar items según la búsqueda
+  const filteredItems = items.filter((r) => {
+    const term = search.toLowerCase();
+    return (
+      r.code?.toLowerCase().includes(term) ||
+      r.description?.toLowerCase().includes(term) ||
+      r.name?.toLowerCase().includes(term)
+    );
+  });
+
+  const openCreate = () => {
+    setEditingId(null);
+    setForm({
+      type: "producto",
+      code: "",
+      description: "",
+      quantity: 0,
+      unit: "unidades",
+      unitValue: 0,
+      taxed: true,
+      iva: 19,
+      createdAt: null,
+    });
+    setIsModalOpen(true);
+  };
+
+  const openEdit = (row) => {
+    setEditingId(row.id);
+    setForm({
+      type: row.type || "producto",
+      code: row.code || "",
+      description: row.description || "",
+      quantity: row.quantity ?? 0,
+      unit: row.unit || "unidades",
+      unitValue: row.unitValue ?? 0,
+      taxed: row.taxed ?? true,
+      iva: row.iva ?? "",
+      createdAt: row.createdAt || null,
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!companyData) return;
+
+    try {
+      let productCode = form.code;
+
+      // 👉 Generar código consecutivo con prefijo
+      if (!editingId) {
+        const typeKey = form.type === "producto" ? "products" : "services";
+        const counterRef = doc(
+          db,
+          `companies/${companyData.id}/counters/${typeKey}`
+        );
+        await setDoc(counterRef, { lastCode: increment(1) }, { merge: true });
+
+        const counterSnap = await getDoc(counterRef);
+        const nextNumber = counterSnap.exists()
+          ? counterSnap.data().lastCode
+          : 1;
+
+        const prefix = form.type === "producto" ? "P" : "S";
+        productCode = `${prefix}-${String(nextNumber).padStart(3, "0")}`;
+      }
+
+      const payload = {
+        type: form.type,
+        code: productCode,
+        description: String(form.description).trim(),
+        name: String(form.description).trim(), // ✅ agregado para facturas
+        quantity: Number(form.quantity) || 0,
+        unit: form.unit,
+        unitValue: Number(form.unitValue) || 0,
+        taxed: Boolean(form.taxed),
+        iva: form.taxed ? (form.iva === "" ? null : Number(form.iva)) : 0, // ✅ evitar string vacío
+        createdAt: editingId ? form.createdAt : serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      if (editingId) {
+        await updateDoc(
+          doc(db, `companies/${companyData.id}/products/${editingId}`),
+          payload
+        );
+      } else {
+        await addDoc(
+          collection(db, `companies/${companyData.id}/products`),
+          payload
+        );
+      }
+
+      setIsModalOpen(false);
+      setEditingId(null);
+    } catch (err) {
+      console.error("Error guardando producto/servicio", err);
+      alert("⚠️ Error guardando producto/servicio: " + err.message);
+    }
+  };
+
+  const handleDelete = async (row) => {
+    if (!companyData) return;
+    if (
+      !confirm(
+        `¿Eliminar "${row.description}"? Esta acción no se puede deshacer.`
+      )
+    )
+      return;
+    try {
+      await deleteDoc(
+        doc(db, `companies/${companyData.id}/products/${row.id}`)
+      );
+    } catch (err) {
+      console.error("Error eliminando producto/servicio", err);
+      alert("⚠️ Error eliminando: " + err.message);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        {/* 🔎 Campo de búsqueda */}
+        <input
+          type="text"
+          placeholder="Buscar por código o descripción"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border px-3 py-2 rounded-lg text-sm w-80"
+        />
+        <Button onClick={openCreate}>
+          {icons.plus} Nuevo Producto/Servicio
+        </Button>
+      </div>
+
+      <Card title="Productos y Servicios">
+        {loading ? (
+          <Spinner />
+        ) : (
+          <table className="w-full text-sm text-left text-gray-500">
+            <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+              <tr>
+                <th className="px-6 py-3">Tipo</th>
+                <th className="px-6 py-3">Código</th>
+                <th className="px-6 py-3">Descripción</th>
+                <th className="px-6 py-3">Cantidad</th>
+                <th className="px-6 py-3">Unidad</th>
+                <th className="px-6 py-3">Valor Unitario</th>
+                <th className="px-6 py-3">Gravado IVA</th>
+                <th className="px-6 py-3">IVA</th>
+                <th className="px-6 py-3">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredItems.map((r) => (
+                <tr key={r.id} className="bg-white border-b hover:bg-gray-50">
+                  <td className="px-6 py-3 capitalize">{r.type}</td>
+                  <td className="px-6 py-3">{r.code}</td>
+                  <td className="px-6 py-3">{r.description}</td>
+                  <td className="px-6 py-3 text-right">{r.quantity}</td>
+                  <td className="px-6 py-3">{r.unit}</td>
+                  <td className="px-6 py-3 text-right">
+                    ${new Intl.NumberFormat("es-CO").format(r.unitValue || 0)}
+                  </td>
+                  <td className="px-6 py-3">{r.taxed ? "Sí" : "No"}</td>
+                  <td className="px-6 py-3">
+                    {r.iva === null || r.iva === ""
+                      ? "No especificado"
+                      : `${r.iva}%`}
+                  </td>
+                  <td className="px-6 py-3 flex space-x-2">
+                    <button
+                      className="text-indigo-600 hover:text-indigo-900"
+                      onClick={() => openEdit(r)}
+                    >
+                      {icons.edit}
+                    </button>
+                    <button
+                      className="text-red-600 hover:text-red-900"
+                      onClick={() => handleDelete(r)}
+                    >
+                      {icons.trash}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {filteredItems.length === 0 && (
+                <tr>
+                  <td colSpan="9" className="text-center py-4 text-gray-500">
+                    No se encontraron resultados
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {/* Modal Crear/Editar */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={`${editingId ? "Editar" : "Crear"} Producto/Servicio`}
+      >
+        <form onSubmit={handleSave} className="space-y-6">
+          {/* Tipo */}
+          <div className="border rounded-lg p-4">
+            <h3 className="font-semibold mb-2">Tipo</h3>
+            <div className="flex items-center space-x-6">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  name="type"
+                  value="producto"
+                  checked={form.type === "producto"}
+                  onChange={handleChange}
+                />
+                <span>Producto</span>
+              </label>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  name="type"
+                  value="servicio"
+                  checked={form.type === "servicio"}
+                  onChange={handleChange}
+                />
+                <span>Servicio</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Información */}
+          <div className="border rounded-lg p-4">
+            <h3 className="font-semibold mb-2">Información del {form.type}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                id="description"
+                name="description"
+                label="Descripción"
+                value={form.description}
+                onChange={handleChange}
+                required
+              />
+              <Input
+                id="quantity"
+                name="quantity"
+                type="number"
+                label="Cantidad"
+                value={form.quantity}
+                onChange={handleChange}
+                min="0"
+              />
+              <Select
+                id="unit"
+                name="unit"
+                label="Unidad de medida"
+                value={form.unit}
+                onChange={handleChange}
+              >
+                {units.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                id="unitValue"
+                name="unitValue"
+                type="number"
+                label="Valor unitario"
+                value={form.unitValue}
+                onChange={handleChange}
+                min="0"
+                step="0.01"
+              />
+
+              {/* Fecha de creación (solo en edición) */}
+              {editingId && (
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Fecha de creación
+                  </label>
+                  <input
+                    type="text"
+                    value={
+                      form.createdAt
+                        ? new Date(
+                            form.createdAt.seconds * 1000
+                          ).toLocaleDateString("es-CO")
+                        : ""
+                    }
+                    readOnly
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Impuestos */}
+          <div className="border rounded-lg p-4">
+            <h3 className="font-semibold mb-2">Impuestos</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  name="taxed"
+                  checked={form.taxed}
+                  onChange={handleChange}
+                />
+                <span>Gravado con IVA</span>
+              </div>
+              <Select
+                id="iva"
+                name="iva"
+                label="IVA"
+                value={form.iva}
+                onChange={handleChange}
+                disabled={!form.taxed}
+              >
+                <option value="">No especificado</option>
+                <option value={0}>0%</option>
+                <option value={5}>5%</option>
+                <option value={19}>19%</option>
+              </Select>
+            </div>
+          </div>
+
+          {/* Botones */}
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" variant="primary">
+              Guardar
+            </Button>
           </div>
         </form>
       </Modal>
@@ -1350,7 +1982,14 @@ const ThirdPartiesModule = () => {
 };
 
 // Modal Crear Factura
-const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
+const InvoiceFormModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  clients,
+  products,
+  initialData,
+}) => {
   const { userData } = useApp();
 
   const [tipoFactura, setTipoFactura] = useState("Electrónica");
@@ -1364,6 +2003,8 @@ const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
   const [items, setItems] = useState([
     {
       productId: "",
+      code: "",
+      name: "",
       quantity: 1,
       price: 0,
       discount: 0,
@@ -1374,11 +2015,29 @@ const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
   const [paymentMethod, setPaymentMethod] = useState("Efectivo");
   const [observaciones, setObservaciones] = useState("");
 
-  // 🔹 Totales desglosados
+  // Totales
   const [subtotal, setSubtotal] = useState(0);
   const [iva, setIva] = useState(0);
   const [retenciones, setRetenciones] = useState(0);
   const [totalNeto, setTotalNeto] = useState(0);
+
+  // ✅ Si hay initialData, precargar estados
+  useEffect(() => {
+    if (initialData) {
+      setTipoFactura(initialData.tipoFactura || "Electrónica");
+      setClientId(initialData.clientId || "");
+      setDate(
+        initialData.date
+          ? new Date(initialData.date.seconds * 1000)
+              .toISOString()
+              .split("T")[0]
+          : date
+      );
+      setItems(initialData.items || []);
+      setPaymentMethod(initialData.paymentMethod || "Efectivo");
+      setObservaciones(initialData.observaciones || "");
+    }
+  }, [initialData]);
 
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
@@ -1387,7 +2046,10 @@ const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
     if (field === "productId") {
       const product = products.find((p) => p.id === value);
       if (product) {
-        newItems[index].price = product.price || 0;
+        newItems[index].price = product.unitValue || 0;
+        newItems[index].tax = product.iva ?? 19;
+        newItems[index].code = product.code || "";
+        newItems[index].name = product.name || product.description || "";
       }
     }
     setItems(newItems);
@@ -1398,6 +2060,8 @@ const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
       ...items,
       {
         productId: "",
+        code: "",
+        name: "",
         quantity: 1,
         price: 0,
         discount: 0,
@@ -1405,9 +2069,10 @@ const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
         retention: 0,
       },
     ]);
+
   const removeItem = (i) => setItems(items.filter((_, idx) => idx !== i));
 
-  // 🔹 Cálculo de totales
+  // Totales automáticos
   useEffect(() => {
     let sub = 0;
     let ivaCalc = 0;
@@ -1434,6 +2099,7 @@ const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     const invoiceData = {
+      id: initialData?.id || null, // ✅ si es edición, conservar ID
       tipoFactura,
       clientId,
       vendedor: userData?.name || "Usuario",
@@ -1461,7 +2127,9 @@ const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Crear Nueva Factura de Venta"
+      title={
+        initialData ? "Editar Factura de Venta" : "Crear Nueva Factura de Venta"
+      }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Encabezado */}
@@ -1496,12 +2164,10 @@ const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
           />
         </div>
 
-        {/* Detalle de la factura */}
+        {/* Ítems */}
         <h4 className="text-md font-semibold pt-4 border-t">
           Ítems de la Factura
         </h4>
-
-        {/* 🔹 Encabezados de columnas */}
         <div className="grid grid-cols-14 gap-2 font-semibold text-gray-600 text-sm border-b pb-1">
           <div className="col-span-3">Producto</div>
           <div className="col-span-2">Cantidad</div>
@@ -1513,7 +2179,6 @@ const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
           <div className="w-8 flex justify-center"></div>
         </div>
 
-        {/* 🔹 Filas dinámicas */}
         {items.map((item, index) => {
           const qty = Number(item.quantity) || 0;
           const price = Number(item.price) || 0;
@@ -1535,7 +2200,7 @@ const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
                   <option value="">Seleccione producto</option>
                   {products.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name}
+                      {p.code} - {p.name}
                     </option>
                   ))}
                 </Select>
@@ -1592,7 +2257,6 @@ const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
               <div className="col-span-1 text-right font-semibold">
                 {new Intl.NumberFormat("es-CO").format(totalItem)}
               </div>
-              {/* 🔹 Botón alineado */}
               <div className="w-8 flex justify-center items-center">
                 <button
                   type="button"
@@ -1610,7 +2274,7 @@ const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
           Añadir Ítem
         </Button>
 
-        {/* Pie de factura con totales */}
+        {/* Totales */}
         <div className="mt-4 border-t pt-4 space-y-2 text-right">
           <p>
             Subtotal: <b>${new Intl.NumberFormat("es-CO").format(subtotal)}</b>
@@ -1627,7 +2291,7 @@ const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
           </p>
         </div>
 
-        {/* Forma de pago + Observaciones */}
+        {/* Forma de pago */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 border-t pt-4">
           <Select
             label="Forma de Pago"
@@ -1649,7 +2313,7 @@ const InvoiceFormModal = ({ isOpen, onClose, onSubmit, clients, products }) => {
             Cancelar
           </Button>
           <Button type="submit" variant="primary">
-            Guardar Factura
+            {initialData ? "Actualizar Factura" : "Guardar Factura"}
           </Button>
         </div>
       </form>
