@@ -745,6 +745,7 @@ const AuthScreen = () => {
 const AppLayout = () => {
   const { userData, companyData } = useApp();
   const [activeView, setActiveView] = useState("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -773,7 +774,6 @@ const AppLayout = () => {
       case "dashboard":
         return <Dashboard />;
       case "sales":
-        // ✅ ahora pasamos setActiveView como prop
         return <SalesModule setActiveView={setActiveView} />;
       case "thirdparties":
         return <ThirdPartiesModule />;
@@ -791,15 +791,25 @@ const AppLayout = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100 font-sans">
+    <div className="flex h-screen bg-gray-100 font-sans relative">
       {/* Sidebar */}
-      <aside className="w-64 flex-shrink-0 bg-indigo-900 text-white flex flex-col">
-        <div className="h-16 flex items-center justify-center px-4 border-b border-indigo-800">
-          <h2 className="text-xl font-bold">
+      <aside
+        className={`fixed top-0 left-0 h-full bg-indigo-900 text-white flex flex-col transform transition-transform duration-300 z-20
+        ${sidebarOpen ? "translate-x-0 w-64" : "-translate-x-full w-64"}`}
+      >
+        <div className="h-16 flex items-center justify-between px-4 border-b border-indigo-800">
+          <h2 className="text-xl font-bold truncate">
             {companyData?.name || "ERP Nube"}
           </h2>
+          {/* Botón para colapsar */}
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="text-gray-300 hover:text-white"
+          >
+            ➖
+          </button>
         </div>
-        <nav className="flex-1 px-4 py-4 space-y-2">
+        <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
           <NavLink view="dashboard" icon={icons.dashboard}>
             Dashboard
           </NavLink>
@@ -845,15 +855,29 @@ const AppLayout = () => {
         </div>
       </aside>
 
+      {/* Botón flotante para abrir */}
+      {!sidebarOpen && (
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="absolute top-5 left-3 z-10 bg-indigo-600 text-white p-2 rounded-full shadow hover:bg-indigo-700 transition"
+        >
+          ➡️
+        </button>
+      )}
+
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto">
+      <div
+        className={`flex-1 flex flex-col transition-all duration-300 ${
+          sidebarOpen ? "ml-64" : "ml-0"
+        }`}
+      >
         <header className="bg-white shadow-sm h-16 flex items-center justify-between px-6">
           <h1 className="text-2xl font-semibold text-gray-800 capitalize">
             {activeView}
           </h1>
         </header>
-        <div className="p-6">{renderContent()}</div>
-      </main>
+        <main className="flex-1 overflow-y-auto p-6">{renderContent()}</main>
+      </div>
     </div>
   );
 };
@@ -893,6 +917,7 @@ const Dashboard = () => {
         Bienvenido a {companyData?.name}
       </h2>
 
+      {/* Tarjetas KPI */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {kpis.map((kpi) => (
           <div
@@ -903,13 +928,20 @@ const Dashboard = () => {
               {React.cloneElement(kpi.icon, { className: "h-8 w-8" })}
             </div>
             <div className="ml-4">
-              <p className="text-sm text-gray-500">{kpi.title}</p>
-              <p className="text-2xl font-bold text-gray-800">{kpi.value}</p>
+              {/* Título grande */}
+              <p className="text-lg font-semibold text-gray-800">
+                {kpi.title}
+              </p>
+              {/* Valor pequeño */}
+              <p className="text-sm font-medium text-gray-500">
+                {kpi.value}
+              </p>
             </div>
           </div>
         ))}
       </div>
 
+      {/* Otras secciones */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card title="Ventas vs Compras (Últimos 6 meses)">
           <div className="h-64 bg-gray-200 rounded-md flex items-center justify-center">
@@ -1386,56 +1418,56 @@ const ThirdPartiesModule = () => {
           <Spinner />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left text-gray-500">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-              <tr>
-                <th className="px-6 py-3">Tipo</th>
-                <th className="px-6 py-3">Tipo Persona</th>
-                <th className="px-6 py-3">Identificación</th>
-                <th className="px-6 py-3">Nombre / Razón social</th>
-                <th className="px-6 py-3">Ciudad</th>
-                <th className="px-6 py-3">Teléfono</th>
-                <th className="px-6 py-3">Correo</th>
-                <th className="px-6 py-3">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => (
-                <tr key={r.id} className="bg-white border-b hover:bg-gray-50">
-                  <td className="px-6 py-3 capitalize">{r.type}</td>
-                  <td className="px-6 py-3 capitalize">{r.personType}</td>
-                  <td className="px-6 py-3">
-                    {idTypeLabel(r.idType)} {r.idNumber}
-                  </td>
-                  <td className="px-6 py-3">{fullName(r)}</td>
-                  <td className="px-6 py-3">{r.city}</td>
-                  <td className="px-6 py-3">{r.phone}</td>
-                  <td className="px-6 py-3">{r.email}</td>
-                  <td className="px-6 py-3 flex space-x-2">
-                    <button
-                      className="text-indigo-600 hover:text-indigo-900"
-                      onClick={() => openEdit(r)}
-                    >
-                      {icons.edit}
-                    </button>
-                    <button
-                      className="text-red-600 hover:text-red-900"
-                      onClick={() => handleDelete(r)}
-                    >
-                      {icons.trash}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
+            <table className="min-w-full text-sm text-left text-gray-500">
+              <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 z-10">
                 <tr>
-                  <td colSpan="8" className="text-center py-4 text-gray-500">
-                    No se encontraron resultados
-                  </td>
+                  <th className="px-6 py-3 bg-gray-50">Tipo</th>
+                  <th className="px-6 py-3 bg-gray-50">Tipo Persona</th>
+                  <th className="px-6 py-3 bg-gray-50">Identificación</th>
+                  <th className="px-6 py-3 bg-gray-50">Nombre / Razón social</th>
+                  <th className="px-6 py-3 bg-gray-50">Ciudad</th>
+                  <th className="px-6 py-3 bg-gray-50">Teléfono</th>
+                  <th className="px-6 py-3 bg-gray-50">Correo</th>
+                  <th className="px-6 py-3 bg-gray-50">Acciones</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.map((r) => (
+                  <tr key={r.id} className="bg-white border-b hover:bg-gray-50">
+                    <td className="px-6 py-3 capitalize">{r.type}</td>
+                    <td className="px-6 py-3 capitalize">{r.personType}</td>
+                    <td className="px-6 py-3">
+                      {idTypeLabel(r.idType)} {r.idNumber}
+                    </td>
+                    <td className="px-6 py-3">{fullName(r)}</td>
+                    <td className="px-6 py-3">{r.city}</td>
+                    <td className="px-6 py-3">{r.phone}</td>
+                    <td className="px-6 py-3">{r.email}</td>
+                    <td className="px-6 py-3 flex space-x-2">
+                      <button
+                        className="text-indigo-600 hover:text-indigo-900"
+                        onClick={() => openEdit(r)}
+                      >
+                        {icons.edit}
+                      </button>
+                      <button
+                        className="text-red-600 hover:text-red-900"
+                        onClick={() => handleDelete(r)}
+                      >
+                        {icons.trash}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan="8" className="text-center py-4 text-gray-500">
+                      No se encontraron resultados
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         )}
       </Card>
