@@ -284,15 +284,42 @@ const icons = {
       />
     </svg>
   ),
-    filter: (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M6 12h12M10 20h4" />
+  filter: (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-5 w-5 mr-2"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 4h18M6 12h12M10 20h4"
+      />
     </svg>
   ),
   userPlus: (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 14a4 4 0 10-8 0 4 4 0 008 0z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14v7m-5-3h10M16 3h5m-2.5-2.5V5.5" />
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-5 w-5 mr-2"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M16 14a4 4 0 10-8 0 4 4 0 008 0z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 14v7m-5-3h10M16 3h5m-2.5-2.5V5.5"
+      />
     </svg>
   ),
 };
@@ -742,6 +769,8 @@ const AuthScreen = () => {
   );
 };
 // --- Layout Principal de la Aplicación ---
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
 const AppLayout = () => {
   const { userData, companyData } = useApp();
   const [activeView, setActiveView] = useState("dashboard");
@@ -804,9 +833,10 @@ const AppLayout = () => {
           {/* Botón para colapsar */}
           <button
             onClick={() => setSidebarOpen(false)}
+            aria-label="Cerrar menú"
             className="text-gray-300 hover:text-white"
           >
-            ➖
+            <ChevronLeft className="h-6 w-6" />
           </button>
         </div>
         <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
@@ -855,14 +885,22 @@ const AppLayout = () => {
         </div>
       </aside>
 
-      {/* Botón flotante para abrir */}
+      {/* Pestañita centrada con tooltip pro */}
       {!sidebarOpen && (
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="absolute top-5 left-3 z-10 bg-indigo-600 text-white p-2 rounded-full shadow hover:bg-indigo-700 transition"
-        >
-          ➡️
-        </button>
+        <div className="fixed top-1/2 -translate-y-1/2 left-0 z-30 group">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Abrir menú"
+            className="bg-indigo-600 text-white p-2 rounded-r-md shadow-md transition-all duration-300 hover:bg-indigo-700 hover:-translate-x-1"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+          {/* Tooltip */}
+          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg pointer-events-none">
+            Abrir menú
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 -ml-1 w-2 h-2 bg-gray-900 rotate-45"></div>
+          </div>
+        </div>
       )}
 
       {/* Main Content */}
@@ -929,13 +967,9 @@ const Dashboard = () => {
             </div>
             <div className="ml-4">
               {/* Título grande */}
-              <p className="text-lg font-semibold text-gray-800">
-                {kpi.title}
-              </p>
+              <p className="text-lg font-semibold text-gray-800">{kpi.title}</p>
               {/* Valor pequeño */}
-              <p className="text-sm font-medium text-gray-500">
-                {kpi.value}
-              </p>
+              <p className="text-sm font-medium text-gray-500">{kpi.value}</p>
             </div>
           </div>
         ))}
@@ -1236,13 +1270,13 @@ const ThirdPartiesModule = () => {
 
   // formulario
   const [form, setForm] = useState({
-    type: "cliente",            // cliente | proveedor | otro
-    personType: "persona",      // persona | empresa
-    idType: "CC",               // CC | NIT (según personType)
+    type: "cliente", // cliente | proveedor | otro
+    personType: "persona", // persona | empresa
+    idType: "CC", // CC | NIT (según personType)
     idNumber: "",
     name: "",
     lastName: "",
-    tradeName: "",              // nombre comercial (para empresa o alias)
+    tradeName: "", // nombre comercial (para empresa o alias)
     city: "",
     address: "",
     phone: "",
@@ -1253,7 +1287,7 @@ const ThirdPartiesModule = () => {
   // helpers
   const fullName = (r) =>
     r.personType === "empresa"
-      ? (r.tradeName || `${r.name}` || "")
+      ? r.tradeName || `${r.name}` || ""
       : `${r.name || ""} ${r.lastName || ""}`.trim();
 
   const idTypeLabel = (v) => (v === "NIT" ? "NIT" : "CC");
@@ -1350,9 +1384,9 @@ const ThirdPartiesModule = () => {
     if (!companyData) return;
 
     const payload = {
-      type: form.type,                 // cliente | proveedor | otro
-      personType: form.personType,     // persona | empresa
-      idType: form.idType,             // CC | NIT
+      type: form.type, // cliente | proveedor | otro
+      personType: form.personType, // persona | empresa
+      idType: form.idType, // CC | NIT
       idNumber: String(form.idNumber).trim(),
       name: String(form.name).trim(),
       lastName: String(form.lastName).trim(),
@@ -1387,9 +1421,16 @@ const ThirdPartiesModule = () => {
 
   const handleDelete = async (row) => {
     if (!companyData) return;
-    if (!confirm(`¿Eliminar "${fullName(row)}"? Esta acción no se puede deshacer.`)) return;
+    if (
+      !confirm(
+        `¿Eliminar "${fullName(row)}"? Esta acción no se puede deshacer.`
+      )
+    )
+      return;
     try {
-      await deleteDoc(doc(db, `companies/${companyData.id}/thirdparties/${row.id}`));
+      await deleteDoc(
+        doc(db, `companies/${companyData.id}/thirdparties/${row.id}`)
+      );
     } catch (err) {
       console.error("Error deleting third party", err);
       alert("⚠️ Error eliminando: " + err.message);
@@ -1407,9 +1448,7 @@ const ThirdPartiesModule = () => {
           onChange={(e) => setSearch(e.target.value)}
           className="border px-3 py-2 rounded-lg text-sm w-80"
         />
-        <Button onClick={openCreate}>
-          {icons.plus} Nuevo Tercero
-        </Button>
+        <Button onClick={openCreate}>{icons.plus} Nuevo Tercero</Button>
       </div>
 
       {/* tabla */}
@@ -1424,7 +1463,9 @@ const ThirdPartiesModule = () => {
                   <th className="px-6 py-3 bg-gray-50">Tipo</th>
                   <th className="px-6 py-3 bg-gray-50">Tipo Persona</th>
                   <th className="px-6 py-3 bg-gray-50">Identificación</th>
-                  <th className="px-6 py-3 bg-gray-50">Nombre / Razón social</th>
+                  <th className="px-6 py-3 bg-gray-50">
+                    Nombre / Razón social
+                  </th>
                   <th className="px-6 py-3 bg-gray-50">Ciudad</th>
                   <th className="px-6 py-3 bg-gray-50">Teléfono</th>
                   <th className="px-6 py-3 bg-gray-50">Correo</th>
@@ -1484,7 +1525,10 @@ const ThirdPartiesModule = () => {
             <h3 className="font-semibold mb-2">Tipo de tercero</h3>
             <div className="flex items-center space-x-6">
               {["cliente", "proveedor", "otro"].map((t) => (
-                <label key={t} className="flex items-center space-x-2 capitalize">
+                <label
+                  key={t}
+                  className="flex items-center space-x-2 capitalize"
+                >
                   <input
                     type="radio"
                     name="type"
@@ -1528,7 +1572,11 @@ const ThirdPartiesModule = () => {
             <Input
               id="idNumber"
               name="idNumber"
-              label={form.personType === "empresa" ? "Número de NIT" : "Número de Cédula"}
+              label={
+                form.personType === "empresa"
+                  ? "Número de NIT"
+                  : "Número de Cédula"
+              }
               value={form.idNumber}
               onChange={handleChange}
               required
@@ -1536,7 +1584,11 @@ const ThirdPartiesModule = () => {
             <Input
               id="name"
               name="name"
-              label={form.personType === "empresa" ? "Razón Social / Nombre Legal" : "Nombres"}
+              label={
+                form.personType === "empresa"
+                  ? "Razón Social / Nombre Legal"
+                  : "Nombres"
+              }
               value={form.name}
               onChange={handleChange}
               required
@@ -1600,7 +1652,9 @@ const ThirdPartiesModule = () => {
                   type="text"
                   value={
                     form.createdAt
-                      ? new Date(form.createdAt.seconds * 1000).toLocaleString("es-CO")
+                      ? new Date(form.createdAt.seconds * 1000).toLocaleString(
+                          "es-CO"
+                        )
                       : ""
                   }
                   readOnly
@@ -1612,7 +1666,11 @@ const ThirdPartiesModule = () => {
 
           {/* Botones */}
           <div className="flex justify-end space-x-2">
-            <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsModalOpen(false)}
+            >
               Cancelar
             </Button>
             <Button type="submit" variant="primary">
