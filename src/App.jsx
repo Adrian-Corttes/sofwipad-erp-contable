@@ -1124,7 +1124,7 @@ const SalesModule = ({ setActiveView }) => {
   // --- Eliminar factura ---
   const handleDeleteInvoice = async (id) => {
     if (!companyData) return;
-    if (!window.confirm("¿Seguro que deseas eliminar esta factura?")) return;
+    if (!await confirmDialog("¿Seguro que deseas eliminar esta factura?")) return;
     try {
       const path = `companies/${companyData.id}/invoices_sales/${id}`;
       console.log("🗑️ Intentando borrar:", path);
@@ -1132,7 +1132,7 @@ const SalesModule = ({ setActiveView }) => {
       console.log("✅ Factura eliminada correctamente");
     } catch (error) {
       console.error("❌ Error deleting invoice: ", error);
-      alert("Error eliminando factura: " + error.message);
+      toast.error("Error eliminando factura: " + error.message);
     }
   };
 
@@ -1450,7 +1450,7 @@ const ThirdPartiesModule = () => {
       setEditingId(null);
     } catch (err) {
       console.error("Error saving third party", err);
-      alert("⚠️ Error guardando tercero: " + err.message);
+      toast.error("⚠️ Error guardando tercero: " + err.message);
     }
   };
 
@@ -1468,7 +1468,7 @@ const ThirdPartiesModule = () => {
       );
     } catch (err) {
       console.error("Error deleting third party", err);
-      alert("⚠️ Error eliminando: " + err.message);
+      toast.error("⚠️ Error eliminando: " + err.message);
     }
   };
 
@@ -1873,7 +1873,7 @@ const ProductsServicesModule = () => {
       setEditingId(null);
     } catch (err) {
       console.error("Error guardando producto/servicio", err);
-      alert("⚠️ Error guardando producto/servicio: " + err.message);
+      toast.error("⚠️ Error guardando producto/servicio: " + err.message);
     }
   };
 
@@ -1891,7 +1891,7 @@ const ProductsServicesModule = () => {
       );
     } catch (err) {
       console.error("Error eliminando producto/servicio", err);
-      alert("⚠️ Error eliminando: " + err.message);
+      toast.error("⚠️ Error eliminando: " + err.message);
     }
   };
 
