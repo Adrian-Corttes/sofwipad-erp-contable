@@ -1287,17 +1287,18 @@ const ThirdPartiesModule = () => {
 
   // formulario
   const [form, setForm] = useState({
-    type: "cliente", // cliente | proveedor | otro
-    personType: "persona", // persona | empresa
-    idType: "CC", // CC | NIT (según personType)
+    type: [], // ✅ ahora array: cliente | proveedor | otro
+    personType: "persona",
+    idType: "CC",
     idNumber: "",
     name: "",
     lastName: "",
-    tradeName: "", // nombre comercial (para empresa o alias)
+    tradeName: "",
     city: "",
     address: "",
     phone: "",
     email: "",
+    otherDescription: "", // ✅ descripción si selecciona "otro"
     createdAt: null,
   });
 
@@ -1342,7 +1343,7 @@ const ThirdPartiesModule = () => {
   const openCreate = () => {
     setEditingId(null);
     setForm({
-      type: "cliente",
+      type: [],
       personType: "persona",
       idType: "CC",
       idNumber: "",
@@ -1353,6 +1354,7 @@ const ThirdPartiesModule = () => {
       address: "",
       phone: "",
       email: "",
+      otherDescription: "",
       createdAt: null,
     });
     setIsModalOpen(true);
@@ -1361,7 +1363,7 @@ const ThirdPartiesModule = () => {
   const openEdit = (row) => {
     setEditingId(row.id);
     setForm({
-      type: row.type || "cliente",
+      type: Array.isArray(row.type) ? row.type : [row.type].filter(Boolean),
       personType: row.personType || "persona",
       idType: row.idType || (row.personType === "empresa" ? "NIT" : "CC"),
       idNumber: row.idNumber || "",
@@ -1372,6 +1374,7 @@ const ThirdPartiesModule = () => {
       address: row.address || "",
       phone: row.phone || "",
       email: row.email || "",
+      otherDescription: row.otherDescription || "",
       createdAt: row.createdAt || null,
     });
     setIsModalOpen(true);
@@ -1380,13 +1383,25 @@ const ThirdPartiesModule = () => {
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
-    // si cambia el tipo de persona, ajustar idType automáticamente
     if (name === "personType") {
       setForm((p) => ({
         ...p,
         personType: value,
         idType: value === "empresa" ? "NIT" : "CC",
       }));
+      return;
+    }
+
+    if (name === "type") {
+      setForm((prev) => {
+        let newTypes = [...prev.type];
+        if (checked) {
+          if (!newTypes.includes(value)) newTypes.push(value);
+        } else {
+          newTypes = newTypes.filter((t) => t !== value);
+        }
+        return { ...prev, type: newTypes };
+      });
       return;
     }
 
@@ -1401,9 +1416,9 @@ const ThirdPartiesModule = () => {
     if (!companyData) return;
 
     const payload = {
-      type: form.type, // cliente | proveedor | otro
-      personType: form.personType, // persona | empresa
-      idType: form.idType, // CC | NIT
+      type: form.type, // ✅ ahora array
+      personType: form.personType,
+      idType: form.idType,
       idNumber: String(form.idNumber).trim(),
       name: String(form.name).trim(),
       lastName: String(form.lastName).trim(),
@@ -1412,6 +1427,9 @@ const ThirdPartiesModule = () => {
       address: String(form.address).trim(),
       phone: String(form.phone).trim(),
       email: String(form.email).trim(),
+      otherDescription: form.type.includes("otro")
+        ? String(form.otherDescription).trim()
+        : "",
       createdAt: editingId ? form.createdAt : serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -1492,7 +1510,11 @@ const ThirdPartiesModule = () => {
               <tbody>
                 {filtered.map((r) => (
                   <tr key={r.id} className="bg-white border-b hover:bg-gray-50">
-                    <td className="px-6 py-3 capitalize">{r.type}</td>
+                    <td className="px-6 py-3 capitalize">
+                      {Array.isArray(r.type)
+                        ? r.type.join(", ")
+                        : r.type || ""}
+                    </td>
                     <td className="px-6 py-3 capitalize">{r.personType}</td>
                     <td className="px-6 py-3">
                       {idTypeLabel(r.idType)} {r.idNumber}
@@ -1547,16 +1569,30 @@ const ThirdPartiesModule = () => {
                   className="flex items-center space-x-2 capitalize"
                 >
                   <input
-                    type="radio"
+                    type="checkbox"
                     name="type"
                     value={t}
-                    checked={form.type === t}
+                    checked={form.type.includes(t)}
                     onChange={handleChange}
                   />
                   <span>{t}</span>
                 </label>
               ))}
             </div>
+
+            {/* campo adicional si selecciona "otro" */}
+            {form.type.includes("otro") && (
+              <div className="mt-3">
+                <Input
+                  id="otherDescription"
+                  name="otherDescription"
+                  label="Descripción (Otro)"
+                  value={form.otherDescription}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            )}
           </div>
 
           {/* Datos de identificación */}
