@@ -32,6 +32,7 @@ import {
   getDocs,
   limit,
   increment,
+  orderBy,
 } from "firebase/firestore";
 import { setLogLevel } from "firebase/firestore";
 import { Edit, Trash } from "lucide-react";
@@ -1003,19 +1004,18 @@ const Dashboard = () => {
 const SalesModule = ({ setActiveView }) => {
   const { companyData } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingInvoice, setEditingInvoice] = useState(null); // ✅ si hay factura en edición
+  const [editingInvoice, setEditingInvoice] = useState(null);
   const [invoices, setInvoices] = useState([]);
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [lastInvoiceNumber, setLastInvoiceNumber] = useState(null); // ✅ última factura
 
   // --- Obtener facturas ---
   useEffect(() => {
     if (!companyData) return;
     setLoading(true);
-    const q = query(
-      collection(db, `companies/${companyData.id}/invoices_sales`)
-    );
+    const q = query(collection(db, `companies/${companyData.id}/invoices_sales`));
     const unsubscribe = onSnapshot(
       q,
       (querySnapshot) => {
@@ -1037,12 +1037,8 @@ const SalesModule = ({ setActiveView }) => {
   // --- Obtener clientes y productos ---
   useEffect(() => {
     if (!companyData) return;
-    const clientsQuery = query(
-      collection(db, `companies/${companyData.id}/thirdparties`)
-    );
-    const productsQuery = query(
-      collection(db, `companies/${companyData.id}/products`)
-    );
+    const clientsQuery = query(collection(db, `companies/${companyData.id}/thirdparties`));
+    const productsQuery = query(collection(db, `companies/${companyData.id}/products`));
 
     const unsubClients = onSnapshot(clientsQuery, (snapshot) => {
       setClients(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
@@ -1057,20 +1053,52 @@ const SalesModule = ({ setActiveView }) => {
     };
   }, [companyData]);
 
+  // --- Última factura registrada ---
+  useEffect(() => {
+    if (!companyData) return;
+
+    const q = query(
+      collection(db, `companies/${companyData.id}/invoices_sales`),
+      orderBy("createdAt", "desc"),
+      limit(1)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const lastInvoice = snapshot.docs[0].data();
+        setLastInvoiceNumber(lastInvoice.invoiceNumber);
+      } else {
+        setLastInvoiceNumber(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [companyData]);
+
   // --- Crear factura ---
   const handleCreateInvoice = async (invoiceData) => {
     if (!companyData) return;
     try {
-      const invoicesRef = collection(
-        db,
-        `companies/${companyData.id}/invoices_sales`
-      );
-      await addDoc(invoicesRef, {
+      const counterRef = doc(db, `companies/${companyData.id}/counters/invoices_sales`);
+      await setDoc(counterRef, { lastNumber: increment(1) }, { merge: true });
+
+      const counterSnap = await getDoc(counterRef);
+      const nextNumber = counterSnap.exists() ? counterSnap.data().lastNumber : 1;
+
+      const randomPart = Math.random().toString(36).substring(2, 5).toUpperCase();
+      const invoiceNumber = `FV-${String(nextNumber).padStart(3, "0")}${randomPart}`;
+
+      const invoicesRef = collection(db, `companies/${companyData.id}/invoices_sales`);
+      const newInvoiceRef = await addDoc(invoicesRef, {
         ...invoiceData,
         companyId: companyData.id,
+        invoiceNumber,
         createdAt: serverTimestamp(),
         status: "Pendiente",
       });
+
+      await updateDoc(newInvoiceRef, { id: newInvoiceRef.id });
+
       setIsModalOpen(false);
     } catch (error) {
       console.error("Error creating invoice: ", error);
@@ -1081,10 +1109,7 @@ const SalesModule = ({ setActiveView }) => {
   const handleUpdateInvoice = async (invoiceData) => {
     if (!companyData || !editingInvoice) return;
     try {
-      const invoiceRef = doc(
-        db,
-        `companies/${companyData.id}/invoices_sales/${editingInvoice.id}`
-      );
+      const invoiceRef = doc(db, `companies/${companyData.id}/invoices_sales/${editingInvoice.id}`);
       await updateDoc(invoiceRef, {
         ...invoiceData,
         updatedAt: serverTimestamp(),
@@ -1101,11 +1126,13 @@ const SalesModule = ({ setActiveView }) => {
     if (!companyData) return;
     if (!window.confirm("¿Seguro que deseas eliminar esta factura?")) return;
     try {
-      await deleteDoc(
-        doc(db, `companies/${companyData.id}/invoices_sales/${id}`)
-      );
+      const path = `companies/${companyData.id}/invoices_sales/${id}`;
+      console.log("🗑️ Intentando borrar:", path);
+      await deleteDoc(doc(db, path));
+      console.log("✅ Factura eliminada correctamente");
     } catch (error) {
-      console.error("Error deleting invoice: ", error);
+      console.error("❌ Error deleting invoice: ", error);
+      alert("Error eliminando factura: " + error.message);
     }
   };
 
@@ -1117,13 +1144,9 @@ const SalesModule = ({ setActiveView }) => {
           <button className="border-b-2 border-blue-600 text-blue-600 pb-2">
             Documentos de venta
           </button>
-          <button className="pb-2 hover:text-blue-600">
-            Facturas recurrentes
-          </button>
+          <button className="pb-2 hover:text-blue-600">Facturas recurrentes</button>
           <button className="pb-2 hover:text-blue-600">Clientes</button>
-          <button className="pb-2 hover:text-blue-600">
-            Seguimiento comercial
-          </button>
+          <button className="pb-2 hover:text-blue-600">Seguimiento comercial</button>
         </nav>
       </div>
 
@@ -1176,27 +1199,20 @@ const SalesModule = ({ setActiveView }) => {
             </thead>
             <tbody>
               {invoices.map((invoice) => (
-                <tr
-                  key={invoice.id}
-                  className="bg-white border-b hover:bg-gray-50"
-                >
+                <tr key={invoice.id} className="bg-white border-b hover:bg-gray-50">
                   <td className="px-6 py-4">
                     {invoice.date?.seconds
-                      ? new Date(
-                          invoice.date.seconds * 1000
-                        ).toLocaleDateString()
+                      ? new Date(invoice.date.seconds * 1000).toLocaleDateString()
                       : "N/A"}
                   </td>
                   <td className="px-6 py-4 font-medium text-blue-600">
-                    FV-{invoice.id.substring(0, 6)}
+                    {invoice.invoiceNumber || "FV-SINID"}
                   </td>
                   <td className="px-6 py-4">
-                    {clients.find((c) => c.id === invoice.clientId)?.idNumber ||
-                      "N/A"}
+                    {clients.find((c) => c.id === invoice.clientId)?.idNumber || "N/A"}
                   </td>
                   <td className="px-6 py-4">
-                    {clients.find((c) => c.id === invoice.clientId)?.name ||
-                      "Consumidor Final"}
+                    {clients.find((c) => c.id === invoice.clientId)?.name || "Consumidor Final"}
                   </td>
                   <td className="px-6 py-4">
                     ${new Intl.NumberFormat("es-CO").format(invoice.total || 0)}
@@ -1212,7 +1228,7 @@ const SalesModule = ({ setActiveView }) => {
                           : "bg-yellow-100 text-yellow-800"
                       }`}
                     >
-                      {invoice.status}
+                      {invoice.status || "Pendiente"}
                     </span>
                   </td>
                   <td className="px-6 py-4 flex space-x-2">
@@ -1251,7 +1267,8 @@ const SalesModule = ({ setActiveView }) => {
         onSubmit={editingInvoice ? handleUpdateInvoice : handleCreateInvoice}
         clients={clients}
         products={products}
-        initialData={editingInvoice} // ✅ si hay factura en edición
+        initialData={editingInvoice}
+        lastInvoiceNumber={lastInvoiceNumber} // ✅ aquí pasa el consecutivo real
       />
     </div>
   );
@@ -2070,7 +2087,6 @@ const ProductsServicesModule = () => {
     </div>
   );
 };
-
 // Modal Crear Factura
 const InvoiceFormModal = ({
   isOpen,
@@ -2079,6 +2095,7 @@ const InvoiceFormModal = ({
   clients,
   products,
   initialData,
+  lastInvoiceNumber, // ✅ viene desde el padre
 }) => {
   const { userData } = useApp();
 
@@ -2098,7 +2115,7 @@ const InvoiceFormModal = ({
       quantity: 1,
       price: 0,
       discount: 0,
-      tax: 19,
+      tax: "", // ✅ puede estar vacío
       retention: 0,
     },
   ]);
@@ -2110,6 +2127,19 @@ const InvoiceFormModal = ({
   const [iva, setIva] = useState(0);
   const [retenciones, setRetenciones] = useState(0);
   const [totalNeto, setTotalNeto] = useState(0);
+
+  // Función para sugerir siguiente número
+  const getNextInvoiceNumber = (lastInvoiceNumber) => {
+    if (!lastInvoiceNumber) return null;
+
+    const match = lastInvoiceNumber.match(/^FV-(\d+)([A-Z0-9]+)?$/);
+    if (!match) return null;
+
+    const num = parseInt(match[1], 10) + 1;
+    const randomPart = Math.random().toString(36).substring(2, 5).toUpperCase();
+
+    return `FV-${String(num).padStart(3, "0")}${randomPart}`;
+  };
 
   // ✅ Si hay initialData, precargar estados
   useEffect(() => {
@@ -2134,14 +2164,29 @@ const InvoiceFormModal = ({
     newItems[index][field] = value;
 
     if (field === "productId") {
-      const product = products.find((p) => p.id === value);
-      if (product) {
-        newItems[index].price = product.unitValue || 0;
-        newItems[index].tax = product.iva ?? 19;
-        newItems[index].code = product.code || "";
-        newItems[index].name = product.name || product.description || "";
+      if (value === "") {
+        // ✅ si selecciona vacío, limpiar
+        newItems[index] = {
+          productId: "",
+          code: "",
+          name: "",
+          quantity: 1,
+          price: 0,
+          discount: 0,
+          tax: "",
+          retention: 0,
+        };
+      } else {
+        const product = products.find((p) => p.id === value);
+        if (product) {
+          newItems[index].price = product.unitValue || 0;
+          newItems[index].tax = product.iva ?? "";
+          newItems[index].code = product.code || "";
+          newItems[index].name = product.name || product.description || "";
+        }
       }
     }
+
     setItems(newItems);
   };
 
@@ -2155,7 +2200,7 @@ const InvoiceFormModal = ({
         quantity: 1,
         price: 0,
         discount: 0,
-        tax: 19,
+        tax: "",
         retention: 0,
       },
     ]);
@@ -2174,7 +2219,7 @@ const InvoiceFormModal = ({
       const desc = (Number(item.discount) || 0) / 100;
       const base = qty * price * (1 - desc);
 
-      const taxRate = Number(item.tax) / 100;
+      const taxRate = item.tax === "" ? 0 : Number(item.tax) / 100; // ✅ vacío = 0
       sub += base;
       ivaCalc += base * taxRate;
       ret += Number(item.retention) || 0;
@@ -2188,8 +2233,13 @@ const InvoiceFormModal = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    const newInvoiceNumber = !initialData
+      ? getNextInvoiceNumber(lastInvoiceNumber)
+      : initialData.invoiceNumber;
+
     const invoiceData = {
-      id: initialData?.id || null, // ✅ si es edición, conservar ID
+      id: initialData?.id || null,
       tipoFactura,
       clientId,
       vendedor: userData?.name || "Usuario",
@@ -2199,7 +2249,7 @@ const InvoiceFormModal = ({
         quantity: Number(i.quantity),
         price: Number(i.price),
         discount: Number(i.discount),
-        tax: Number(i.tax),
+        tax: i.tax === "" ? null : Number(i.tax), // ✅ guardamos null si vacío
         retention: Number(i.retention),
       })),
       paymentMethod,
@@ -2208,7 +2258,9 @@ const InvoiceFormModal = ({
       iva,
       retenciones,
       total: totalNeto,
+      invoiceNumber: newInvoiceNumber, // ✅ Guardar consecutivo único
     };
+
     onSubmit(invoiceData);
     onClose();
   };
@@ -2222,6 +2274,21 @@ const InvoiceFormModal = ({
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Bloque de última factura / sugerida */}
+        {!initialData && lastInvoiceNumber && (
+          <div className="p-2 bg-gray-100 rounded text-sm text-gray-700 space-y-1">
+            <p>
+              Última factura registrada: <b>{lastInvoiceNumber}</b>
+            </p>
+            {getNextInvoiceNumber(lastInvoiceNumber) && (
+              <p>
+                Siguiente sugerida:{" "}
+                <b>{getNextInvoiceNumber(lastInvoiceNumber)}</b>
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Encabezado */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Select
@@ -2229,8 +2296,8 @@ const InvoiceFormModal = ({
             value={tipoFactura}
             onChange={(e) => setTipoFactura(e.target.value)}
           >
-            <option value="Electrónica">Electrónica</option>
-            <option value="Física">Física</option>
+            <option value="Electrónica">FV-1 Factura Electrónica</option>
+            <option value="Física">FV-2 Documento Ingreso</option>
           </Select>
           <Select
             label="Cliente"
@@ -2274,7 +2341,7 @@ const InvoiceFormModal = ({
           const price = Number(item.price) || 0;
           const desc = (Number(item.discount) || 0) / 100;
           const base = qty * price * (1 - desc);
-          const taxRate = Number(item.tax) / 100;
+          const taxRate = item.tax === "" ? 0 : Number(item.tax) / 100;
           const totalItem =
             base + base * taxRate - (Number(item.retention) || 0);
 
@@ -2330,6 +2397,7 @@ const InvoiceFormModal = ({
                     handleItemChange(index, "tax", e.target.value)
                   }
                 >
+                  <option value=""> </option>
                   <option value={0}>0% (Exento)</option>
                   <option value={5}>5%</option>
                   <option value={19}>19%</option>
