@@ -1124,7 +1124,7 @@ const SalesModule = ({ setActiveView }) => {
   // --- Eliminar factura ---
   const handleDeleteInvoice = async (id) => {
     if (!companyData) return;
-    if (!await confirmDialog("¿Seguro que deseas eliminar esta factura?")) return;
+    if (!window.confirm("¿Seguro que deseas eliminar esta factura?")) return;
     try {
       const path = `companies/${companyData.id}/invoices_sales/${id}`;
       console.log("🗑️ Intentando borrar:", path);
@@ -1132,7 +1132,7 @@ const SalesModule = ({ setActiveView }) => {
       console.log("✅ Factura eliminada correctamente");
     } catch (error) {
       console.error("❌ Error deleting invoice: ", error);
-      toast.error("Error eliminando factura: " + error.message);
+      alert("Error eliminando factura: " + error.message);
     }
   };
 
@@ -1450,7 +1450,7 @@ const ThirdPartiesModule = () => {
       setEditingId(null);
     } catch (err) {
       console.error("Error saving third party", err);
-      toast.error("⚠️ Error guardando tercero: " + err.message);
+      alert("⚠️ Error guardando tercero: " + err.message);
     }
   };
 
@@ -1468,7 +1468,7 @@ const ThirdPartiesModule = () => {
       );
     } catch (err) {
       console.error("Error deleting third party", err);
-      toast.error("⚠️ Error eliminando: " + err.message);
+      alert("⚠️ Error eliminando: " + err.message);
     }
   };
 
@@ -1747,7 +1747,6 @@ const ProductsServicesModule = () => {
     type: "producto", // producto | servicio
     code: "",
     description: "",
-    quantity: 0,
     unit: "unidades",
     unitValue: 0,
     taxed: true,
@@ -1784,7 +1783,6 @@ const ProductsServicesModule = () => {
       type: "producto",
       code: "",
       description: "",
-      quantity: 0,
       unit: "unidades",
       unitValue: 0,
       taxed: true,
@@ -1800,7 +1798,6 @@ const ProductsServicesModule = () => {
       type: row.type || "producto",
       code: row.code || "",
       description: row.description || "",
-      quantity: row.quantity ?? 0,
       unit: row.unit || "unidades",
       unitValue: row.unitValue ?? 0,
       taxed: row.taxed ?? true,
@@ -1848,7 +1845,6 @@ const ProductsServicesModule = () => {
         code: productCode,
         description: String(form.description).trim(),
         name: String(form.description).trim(), // ✅ agregado para facturas
-        quantity: Number(form.quantity) || 0,
         unit: form.unit,
         unitValue: Number(form.unitValue) || 0,
         taxed: Boolean(form.taxed),
@@ -1873,7 +1869,7 @@ const ProductsServicesModule = () => {
       setEditingId(null);
     } catch (err) {
       console.error("Error guardando producto/servicio", err);
-      toast.error("⚠️ Error guardando producto/servicio: " + err.message);
+      alert("⚠️ Error guardando producto/servicio: " + err.message);
     }
   };
 
@@ -1891,7 +1887,7 @@ const ProductsServicesModule = () => {
       );
     } catch (err) {
       console.error("Error eliminando producto/servicio", err);
-      toast.error("⚠️ Error eliminando: " + err.message);
+      alert("⚠️ Error eliminando: " + err.message);
     }
   };
 
@@ -1921,7 +1917,6 @@ const ProductsServicesModule = () => {
                 <th className="px-6 py-3">Tipo</th>
                 <th className="px-6 py-3">Código</th>
                 <th className="px-6 py-3">Descripción</th>
-                <th className="px-6 py-3">Cantidad</th>
                 <th className="px-6 py-3">Unidad</th>
                 <th className="px-6 py-3">Valor Unitario</th>
                 <th className="px-6 py-3">Gravado IVA</th>
@@ -1935,7 +1930,6 @@ const ProductsServicesModule = () => {
                   <td className="px-6 py-3 capitalize">{r.type}</td>
                   <td className="px-6 py-3">{r.code}</td>
                   <td className="px-6 py-3">{r.description}</td>
-                  <td className="px-6 py-3 text-right">{r.quantity}</td>
                   <td className="px-6 py-3">{r.unit}</td>
                   <td className="px-6 py-3 text-right">
                     ${new Intl.NumberFormat("es-CO").format(r.unitValue || 0)}
@@ -1964,7 +1958,7 @@ const ProductsServicesModule = () => {
               ))}
               {filteredItems.length === 0 && (
                 <tr>
-                  <td colSpan="9" className="text-center py-4 text-gray-500">
+                  <td colSpan="8" className="text-center py-4 text-gray-500">
                     No se encontraron resultados
                   </td>
                 </tr>
@@ -2020,15 +2014,6 @@ const ProductsServicesModule = () => {
                 onChange={handleChange}
                 required
               />
-              <Input
-                id="quantity"
-                name="quantity"
-                type="number"
-                label="Cantidad"
-                value={form.quantity}
-                onChange={handleChange}
-                min="0"
-              />
               <Select
                 id="unit"
                 name="unit"
@@ -2061,13 +2046,7 @@ const ProductsServicesModule = () => {
                   </label>
                   <input
                     type="text"
-                    value={
-                      form.createdAt
-                        ? new Date(
-                            form.createdAt.seconds * 1000
-                          ).toLocaleDateString("es-CO")
-                        : ""
-                    }
+                    value={form.createdAt ? new Date(form.createdAt.seconds * 1000).toLocaleDateString("es-CO") : ""}
                     readOnly
                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed"
                   />
