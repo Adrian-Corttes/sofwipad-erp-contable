@@ -327,7 +327,7 @@ const icons = {
 // --- Configuración de Firebase ---
 // FIX: Se usa la configuración que provees, pero se mantiene la lógica para el entorno de Canvas.
 const firebaseConfig = {
-  apiKey: "AIzaSyA6pwcMnIn0y0HcKRWQhfpvPKwmbH-Jc4Y",
+  apiKey: import.meta.env.VITE_GOOGLE_API_KEY,
   authDomain: "sofwipad-erp-contable.firebaseapp.com",
   projectId: "sofwipad-erp-contable",
   storageBucket: "sofwipad-erp-contable.appspot.com",
