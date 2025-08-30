@@ -1,20 +1,20 @@
 import React, {
   useState,
   useEffect,
-  useCallback,
   createContext,
   useContext,
 } from "react";
+
 import { initializeApp } from "firebase/app";
+
 import {
   getAuth,
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
-  signInAnonymously,
-  signInWithCustomToken,
 } from "firebase/auth";
+
 import {
   getFirestore,
   doc,
@@ -22,7 +22,6 @@ import {
   getDoc,
   collection,
   query,
-  where,
   onSnapshot,
   addDoc,
   updateDoc,
@@ -34,8 +33,8 @@ import {
   increment,
   orderBy,
 } from "firebase/firestore";
+
 import { setLogLevel } from "firebase/firestore";
-import { Edit, Trash } from "lucide-react";
 
 // --- Íconos SVG para una mejor UI ---
 const icons = {
@@ -327,20 +326,15 @@ const icons = {
 
 // --- Configuración de Firebase ---
 // FIX: Se usa la configuración que provees, pero se mantiene la lógica para el entorno de Canvas.
-const firebaseConfig =
-  typeof __firebase_config !== "undefined"
-    ? JSON.parse(__firebase_config)
-    : {
-        apiKey: "AIzaSyA6pwcMnIn0y0HcKRWQhfpvPKwmbH-Jc4Y",
-        authDomain: "sofwipad-erp-contable.firebaseapp.com",
-        projectId: "sofwipad-erp-contable",
-        storageBucket: "sofwipad-erp-contable.appspot.com", // Corregido: suele ser .appspot.com
-        messagingSenderId: "902895181248",
-        appId: "1:902895181248:web:dfb884b039dedacfb3bc25",
-        measurementId: "G-D22KTMEDP6",
-      };
-
-const appId = typeof __app_id !== "undefined" ? __app_id : "default-erp-app";
+const firebaseConfig = {
+  apiKey: "AIzaSyA6pwcMnIn0y0HcKRWQhfpvPKwmbH-Jc4Y",
+  authDomain: "sofwipad-erp-contable.firebaseapp.com",
+  projectId: "sofwipad-erp-contable",
+  storageBucket: "sofwipad-erp-contable.appspot.com",
+  messagingSenderId: "902895181248",
+  appId: "1:902895181248:web:dfb884b039dedacfb3bc25",
+  measurementId: "G-D22KTMEDP6",
+};
 
 // Inicializar Firebase
 const app = initializeApp(firebaseConfig);
@@ -2172,7 +2166,7 @@ const InvoiceFormModal = ({
       setPaymentMethod(initialData.paymentMethod || "Efectivo");
       setObservaciones(initialData.observaciones || "");
     }
-  }, [initialData]);
+  }, [initialData, date]); // Agregamos `date` a las dependencias
 
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
@@ -2284,9 +2278,7 @@ const InvoiceFormModal = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={
-        initialData ? "Editar Factura de Venta" : "Crear Nueva Factura de Venta"
-      }
+      title={initialData ? "Editar Factura de Venta" : "Crear Nueva Factura de Venta"}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Bloque de última factura / sugerida */}
@@ -2337,9 +2329,7 @@ const InvoiceFormModal = ({
         </div>
 
         {/* Ítems */}
-        <h4 className="text-md font-semibold pt-4 border-t">
-          Ítems de la Factura
-        </h4>
+        <h4 className="text-md font-semibold pt-4 border-t">Ítems de la Factura</h4>
         <div className="grid grid-cols-14 gap-2 font-semibold text-gray-600 text-sm border-b pb-1">
           <div className="col-span-3">Producto</div>
           <div className="col-span-2">Cantidad</div>
