@@ -325,7 +325,6 @@ const icons = {
 };
 
 // --- Configuración de Firebase ---
-// FIX: Se usa la configuración que provees, pero se mantiene la lógica para el entorno de Canvas.
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_GOOGLE_API_KEY,
   authDomain: "sofwipad-erp-contable.firebaseapp.com",
@@ -1002,8 +1001,9 @@ const SalesModule = ({ setActiveView }) => {
   const [invoices, setInvoices] = useState([]);
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
+  const [retenciones, setRetenciones] = useState([]); // 🔹 nuevo estado
   const [loading, setLoading] = useState(true);
-  const [lastInvoiceNumber, setLastInvoiceNumber] = useState(null); // ✅ última factura
+  const [lastInvoiceNumber, setLastInvoiceNumber] = useState(null);
 
   // --- Obtener facturas ---
   useEffect(() => {
@@ -1028,11 +1028,12 @@ const SalesModule = ({ setActiveView }) => {
     return () => unsubscribe();
   }, [companyData]);
 
-  // --- Obtener clientes y productos ---
+  // --- Obtener clientes, productos y retenciones ---
   useEffect(() => {
     if (!companyData) return;
     const clientsQuery = query(collection(db, `companies/${companyData.id}/thirdparties`));
     const productsQuery = query(collection(db, `companies/${companyData.id}/products`));
+    const retencionesQuery = query(collection(db, `companies/${companyData.id}/retenciones`)); // 🔹 nueva colección
 
     const unsubClients = onSnapshot(clientsQuery, (snapshot) => {
       setClients(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
@@ -1040,17 +1041,20 @@ const SalesModule = ({ setActiveView }) => {
     const unsubProducts = onSnapshot(productsQuery, (snapshot) => {
       setProducts(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
+    const unsubRetenciones = onSnapshot(retencionesQuery, (snapshot) => {
+      setRetenciones(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    });
 
     return () => {
       unsubClients();
       unsubProducts();
+      unsubRetenciones();
     };
   }, [companyData]);
 
   // --- Última factura registrada ---
   useEffect(() => {
     if (!companyData) return;
-
     const q = query(
       collection(db, `companies/${companyData.id}/invoices_sales`),
       orderBy("createdAt", "desc"),
@@ -1261,8 +1265,9 @@ const SalesModule = ({ setActiveView }) => {
         onSubmit={editingInvoice ? handleUpdateInvoice : handleCreateInvoice}
         clients={clients}
         products={products}
+        retenciones={retenciones} // 🔹 pasamos retenciones
         initialData={editingInvoice}
-        lastInvoiceNumber={lastInvoiceNumber} // ✅ aquí pasa el consecutivo real
+        lastInvoiceNumber={lastInvoiceNumber}
       />
     </div>
   );
@@ -2104,7 +2109,7 @@ const InvoiceFormModal = ({
   clients,
   products,
   initialData,
-  lastInvoiceNumber, // ✅ viene desde el padre
+  lastInvoiceNumber,
 }) => {
   const { userData } = useApp();
 
@@ -2124,8 +2129,8 @@ const InvoiceFormModal = ({
       quantity: 1,
       price: 0,
       discount: 0,
-      tax: "", // ✅ puede estar vacío
-      retention: 0,
+      tax: "",
+      retention: "", // ahora se selecciona desde un <Select>
     },
   ]);
   const [paymentMethod, setPaymentMethod] = useState("Efectivo");
@@ -2137,20 +2142,34 @@ const InvoiceFormModal = ({
   const [retenciones, setRetenciones] = useState(0);
   const [totalNeto, setTotalNeto] = useState(0);
 
-  // Función para sugerir siguiente número
+  // Lista fija de retenciones
+  const retencionesOptions = [
+    { label: " ", value: "" },
+    { label: "Retefuente 20%", value: 20 },
+    { label: "Retefuente 11%", value: 11 },
+    { label: "Retefuente 10%", value: 10 },
+    { label: "Retefuente 7%", value: 7 },
+    { label: "Retefuente 6%", value: 6 },
+    { label: "Retefuente 4%", value: 4 },
+    { label: "Retefuente 3.5%", value: 3.5 },
+    { label: "Retefuente 2.5%", value: 2.5 },
+    { label: "Retefuente 2%", value: 2 },
+    { label: "Retefuente 1.5%", value: 1.5 },
+    { label: "Retefuente 1%", value: 1 },
+    { label: "Retefuente 0.50%", value: 0.5 },
+    { label: "Retefuente 0.10%", value: 0.1 },
+    { label: "Retención por combustible 0.10%", value: 0.1 },
+  ];
+
   const getNextInvoiceNumber = (lastInvoiceNumber) => {
     if (!lastInvoiceNumber) return null;
-
     const match = lastInvoiceNumber.match(/^FV-(\d+)([A-Z0-9]+)?$/);
     if (!match) return null;
-
     const num = parseInt(match[1], 10) + 1;
     const randomPart = Math.random().toString(36).substring(2, 5).toUpperCase();
-
     return `FV-${String(num).padStart(3, "0")}${randomPart}`;
   };
 
-  // ✅ Si hay initialData, precargar estados
   useEffect(() => {
     if (initialData) {
       setTipoFactura(initialData.tipoFactura || "Electrónica");
@@ -2166,7 +2185,7 @@ const InvoiceFormModal = ({
       setPaymentMethod(initialData.paymentMethod || "Efectivo");
       setObservaciones(initialData.observaciones || "");
     }
-  }, [initialData, date]); // Agregamos `date` a las dependencias
+  }, [initialData, date]);
 
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
@@ -2174,7 +2193,6 @@ const InvoiceFormModal = ({
 
     if (field === "productId") {
       if (value === "") {
-        // ✅ si selecciona vacío, limpiar
         newItems[index] = {
           productId: "",
           code: "",
@@ -2183,7 +2201,7 @@ const InvoiceFormModal = ({
           price: 0,
           discount: 0,
           tax: "",
-          retention: 0,
+          retention: "",
         };
       } else {
         const product = products.find((p) => p.id === value);
@@ -2210,7 +2228,7 @@ const InvoiceFormModal = ({
         price: 0,
         discount: 0,
         tax: "",
-        retention: 0,
+        retention: "",
       },
     ]);
 
@@ -2220,7 +2238,7 @@ const InvoiceFormModal = ({
   useEffect(() => {
     let sub = 0;
     let ivaCalc = 0;
-    let ret = 0;
+    let retCalc = 0;
 
     items.forEach((item) => {
       const qty = Number(item.quantity) || 0;
@@ -2228,21 +2246,22 @@ const InvoiceFormModal = ({
       const desc = (Number(item.discount) || 0) / 100;
       const base = qty * price * (1 - desc);
 
-      const taxRate = item.tax === "" ? 0 : Number(item.tax) / 100; // ✅ vacío = 0
+      const taxRate = item.tax === "" ? 0 : Number(item.tax) / 100;
+      const retRate = item.retention === "" ? 0 : Number(item.retention) / 100;
+
       sub += base;
       ivaCalc += base * taxRate;
-      ret += Number(item.retention) || 0;
+      retCalc += base * retRate;
     });
 
     setSubtotal(sub);
     setIva(ivaCalc);
-    setRetenciones(ret);
-    setTotalNeto(sub + ivaCalc - ret);
+    setRetenciones(retCalc);
+    setTotalNeto(sub + ivaCalc - retCalc);
   }, [items]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
     const newInvoiceNumber = !initialData
       ? getNextInvoiceNumber(lastInvoiceNumber)
       : initialData.invoiceNumber;
@@ -2258,8 +2277,8 @@ const InvoiceFormModal = ({
         quantity: Number(i.quantity),
         price: Number(i.price),
         discount: Number(i.discount),
-        tax: i.tax === "" ? null : Number(i.tax), // ✅ guardamos null si vacío
-        retention: Number(i.retention),
+        tax: i.tax === "" ? null : Number(i.tax),
+        retention: i.retention === "" ? null : Number(i.retention), // guardamos el %
       })),
       paymentMethod,
       observaciones,
@@ -2267,7 +2286,7 @@ const InvoiceFormModal = ({
       iva,
       retenciones,
       total: totalNeto,
-      invoiceNumber: newInvoiceNumber, // ✅ Guardar consecutivo único
+      invoiceNumber: newInvoiceNumber,
     };
 
     onSubmit(invoiceData);
@@ -2281,17 +2300,11 @@ const InvoiceFormModal = ({
       title={initialData ? "Editar Factura de Venta" : "Crear Nueva Factura de Venta"}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Bloque de última factura / sugerida */}
         {!initialData && lastInvoiceNumber && (
           <div className="p-2 bg-gray-100 rounded text-sm text-gray-700 space-y-1">
-            <p>
-              Última factura registrada: <b>{lastInvoiceNumber}</b>
-            </p>
+            <p>Última factura registrada: <b>{lastInvoiceNumber}</b></p>
             {getNextInvoiceNumber(lastInvoiceNumber) && (
-              <p>
-                Siguiente sugerida:{" "}
-                <b>{getNextInvoiceNumber(lastInvoiceNumber)}</b>
-              </p>
+              <p>Siguiente sugerida: <b>{getNextInvoiceNumber(lastInvoiceNumber)}</b></p>
             )}
           </div>
         )}
@@ -2336,7 +2349,7 @@ const InvoiceFormModal = ({
           <div className="col-span-2">Valor Unitario</div>
           <div className="col-span-2">% Desc.</div>
           <div className="col-span-2">Impuesto</div>
-          <div className="col-span-1">Ret.</div>
+          <div className="col-span-1">% Ret.</div>
           <div className="col-span-1">Valor Total</div>
           <div className="w-8 flex justify-center"></div>
         </div>
@@ -2347,17 +2360,15 @@ const InvoiceFormModal = ({
           const desc = (Number(item.discount) || 0) / 100;
           const base = qty * price * (1 - desc);
           const taxRate = item.tax === "" ? 0 : Number(item.tax) / 100;
-          const totalItem =
-            base + base * taxRate - (Number(item.retention) || 0);
+          const retRate = item.retention === "" ? 0 : Number(item.retention) / 100;
+          const totalItem = base + base * taxRate - base * retRate;
 
           return (
             <div key={index} className="grid grid-cols-14 gap-2 items-center">
               <div className="col-span-3">
                 <Select
                   value={item.productId}
-                  onChange={(e) =>
-                    handleItemChange(index, "productId", e.target.value)
-                  }
+                  onChange={(e) => handleItemChange(index, "productId", e.target.value)}
                 >
                   <option value="">Seleccione producto</option>
                   {products.map((p) => (
@@ -2372,35 +2383,27 @@ const InvoiceFormModal = ({
                   type="number"
                   value={item.quantity}
                   min="1"
-                  onChange={(e) =>
-                    handleItemChange(index, "quantity", e.target.value)
-                  }
+                  onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
                 />
               </div>
               <div className="col-span-2">
                 <Input
                   type="number"
                   value={item.price}
-                  onChange={(e) =>
-                    handleItemChange(index, "price", e.target.value)
-                  }
+                  onChange={(e) => handleItemChange(index, "price", e.target.value)}
                 />
               </div>
               <div className="col-span-2">
                 <Input
                   type="number"
                   value={item.discount}
-                  onChange={(e) =>
-                    handleItemChange(index, "discount", e.target.value)
-                  }
+                  onChange={(e) => handleItemChange(index, "discount", e.target.value)}
                 />
               </div>
               <div className="col-span-2">
                 <Select
                   value={item.tax}
-                  onChange={(e) =>
-                    handleItemChange(index, "tax", e.target.value)
-                  }
+                  onChange={(e) => handleItemChange(index, "tax", e.target.value)}
                 >
                   <option value=""> </option>
                   <option value={0}>0% (Exento)</option>
@@ -2409,13 +2412,16 @@ const InvoiceFormModal = ({
                 </Select>
               </div>
               <div className="col-span-1">
-                <Input
-                  type="number"
+                <Select
                   value={item.retention}
-                  onChange={(e) =>
-                    handleItemChange(index, "retention", e.target.value)
-                  }
-                />
+                  onChange={(e) => handleItemChange(index, "retention", e.target.value)}
+                >
+                  {retencionesOptions.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </Select>
               </div>
               <div className="col-span-1 text-right font-semibold">
                 {new Intl.NumberFormat("es-CO").format(totalItem)}
@@ -2439,16 +2445,9 @@ const InvoiceFormModal = ({
 
         {/* Totales */}
         <div className="mt-4 border-t pt-4 space-y-2 text-right">
-          <p>
-            Subtotal: <b>${new Intl.NumberFormat("es-CO").format(subtotal)}</b>
-          </p>
-          <p>
-            IVA: <b>${new Intl.NumberFormat("es-CO").format(iva)}</b>
-          </p>
-          <p>
-            Retenciones:{" "}
-            <b>-${new Intl.NumberFormat("es-CO").format(retenciones)}</b>
-          </p>
+          <p>Subtotal: <b>${new Intl.NumberFormat("es-CO").format(subtotal)}</b></p>
+          <p>IVA: <b>${new Intl.NumberFormat("es-CO").format(iva)}</b></p>
+          <p>Retenciones: <b>-${new Intl.NumberFormat("es-CO").format(retenciones)}</b></p>
           <p className="text-lg font-bold">
             Total Neto: ${new Intl.NumberFormat("es-CO").format(totalNeto)}
           </p>
