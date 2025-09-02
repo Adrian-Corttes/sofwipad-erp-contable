@@ -1,10 +1,7 @@
-import React, {
-  useState,
-  useEffect,
-  createContext,
-  useContext,
-} from "react";
-
+import React, { useState, useEffect, createContext, useContext } from "react";
+import toast, { Toaster } from "react-hot-toast";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 import { initializeApp } from "firebase/app";
 
 import {
@@ -322,6 +319,28 @@ const icons = {
       />
     </svg>
   ),
+  eye: (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-5 w-5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+      />
+    </svg>
+  ),
 };
 
 // --- Configuración de Firebase ---
@@ -471,8 +490,8 @@ const useApp = () => useContext(AppContext);
 const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-7xl h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10">
           <h3 className="text-xl font-semibold text-gray-800">{title}</h3>
           <button
@@ -998,10 +1017,12 @@ const SalesModule = ({ setActiveView }) => {
   const { companyData } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState(null);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [invoices, setInvoices] = useState([]);
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
-  const [retenciones, setRetenciones] = useState([]); // 🔹 nuevo estado
+  const [retenciones, setRetenciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState(null);
 
@@ -1033,7 +1054,7 @@ const SalesModule = ({ setActiveView }) => {
     if (!companyData) return;
     const clientsQuery = query(collection(db, `companies/${companyData.id}/thirdparties`));
     const productsQuery = query(collection(db, `companies/${companyData.id}/products`));
-    const retencionesQuery = query(collection(db, `companies/${companyData.id}/retenciones`)); // 🔹 nueva colección
+    const retencionesQuery = query(collection(db, `companies/${companyData.id}/retenciones`));
 
     const unsubClients = onSnapshot(clientsQuery, (snapshot) => {
       setClients(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
@@ -1076,15 +1097,14 @@ const SalesModule = ({ setActiveView }) => {
   // --- Crear factura ---
   const handleCreateInvoice = async (invoiceData) => {
     if (!companyData) return;
+    const toastId = toast.loading("Creando factura...");
     try {
       const counterRef = doc(db, `companies/${companyData.id}/counters/invoices_sales`);
       await setDoc(counterRef, { lastNumber: increment(1) }, { merge: true });
 
       const counterSnap = await getDoc(counterRef);
       const nextNumber = counterSnap.exists() ? counterSnap.data().lastNumber : 1;
-
-      const randomPart = Math.random().toString(36).substring(2, 5).toUpperCase();
-      const invoiceNumber = `FV-${String(nextNumber).padStart(3, "0")}${randomPart}`;
+      const invoiceNumber = `FV-${String(nextNumber).padStart(3, "0")}`;
 
       const invoicesRef = collection(db, `companies/${companyData.id}/invoices_sales`);
       const newInvoiceRef = await addDoc(invoicesRef, {
@@ -1098,14 +1118,17 @@ const SalesModule = ({ setActiveView }) => {
       await updateDoc(newInvoiceRef, { id: newInvoiceRef.id });
 
       setIsModalOpen(false);
+      toast.success("✅ Factura creada con éxito", { id: toastId });
     } catch (error) {
       console.error("Error creating invoice: ", error);
+      toast.error("❌ Error al crear la factura", { id: toastId });
     }
   };
 
   // --- Editar factura ---
   const handleUpdateInvoice = async (invoiceData) => {
     if (!companyData || !editingInvoice) return;
+    const toastId = toast.loading("Actualizando factura...");
     try {
       const invoiceRef = doc(db, `companies/${companyData.id}/invoices_sales/${editingInvoice.id}`);
       await updateDoc(invoiceRef, {
@@ -1114,8 +1137,10 @@ const SalesModule = ({ setActiveView }) => {
       });
       setEditingInvoice(null);
       setIsModalOpen(false);
+      toast.success("✅ Factura actualizada correctamente", { id: toastId });
     } catch (error) {
       console.error("Error updating invoice: ", error);
+      toast.error("❌ Error al actualizar la factura", { id: toastId });
     }
   };
 
@@ -1123,20 +1148,61 @@ const SalesModule = ({ setActiveView }) => {
   const handleDeleteInvoice = async (id) => {
     if (!companyData) return;
     if (!window.confirm("¿Seguro que deseas eliminar esta factura?")) return;
+    const toastId = toast.loading("Eliminando factura...");
     try {
       const path = `companies/${companyData.id}/invoices_sales/${id}`;
-      console.log("🗑️ Intentando borrar:", path);
       await deleteDoc(doc(db, path));
-      console.log("✅ Factura eliminada correctamente");
+      toast.success("✅ Factura eliminada correctamente", { id: toastId });
     } catch (error) {
       console.error("❌ Error deleting invoice: ", error);
-      alert("Error eliminando factura: " + error.message);
+      toast.error("❌ Error eliminando factura", { id: toastId });
     }
+  };
+
+  // --- Descargar PDF ---
+  const generateInvoicePDF = (invoice) => {
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.text("Factura de Venta", 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Número: ${invoice.invoiceNumber}`, 14, 28);
+    doc.text(
+      `Cliente: ${clients.find((c) => c.id === invoice.clientId)?.name || "N/A"}`,
+      14,
+      34
+    );
+
+    // Items
+    const rows = invoice.items.map((item) => [
+      item.name,
+      item.quantity,
+      `$${item.price}`,
+      `${item.discount}%`,
+      `${item.tax}%`,
+      `${item.retention}%`,
+      `$${(item.price * item.quantity).toFixed(2)}`,
+    ]);
+
+    doc.autoTable({
+      head: [["Producto", "Cant.", "Precio", "Desc.", "IVA", "Ret.", "Total"]],
+      body: rows,
+      startY: 40,
+    });
+
+    // Totales
+    doc.text(`Subtotal: $${invoice.subtotal}`, 14, doc.lastAutoTable.finalY + 10);
+    doc.text(`IVA: $${invoice.iva}`, 14, doc.lastAutoTable.finalY + 16);
+    doc.text(`Retenciones: -$${invoice.retenciones}`, 14, doc.lastAutoTable.finalY + 22);
+    doc.setFontSize(12);
+    doc.text(`Total Neto: $${invoice.total}`, 14, doc.lastAutoTable.finalY + 32);
+
+    doc.save(`Factura_${invoice.invoiceNumber}.pdf`);
   };
 
   return (
     <div>
-      {/* Tabs estilo Siigo */}
+      {/* Tabs */}
       <div className="border-b mb-4">
         <nav className="flex space-x-6 text-sm font-medium text-gray-600">
           <button className="border-b-2 border-blue-600 text-blue-600 pb-2">
@@ -1159,11 +1225,7 @@ const SalesModule = ({ setActiveView }) => {
           <Button variant="secondary">{icons.filter} Filtros</Button>
         </div>
         <div className="flex space-x-2">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setActiveView("thirdparties")}
-          >
+          <Button type="button" variant="secondary" onClick={() => setActiveView("thirdparties")}>
             {icons.userPlus} Crear Cliente
           </Button>
           <Button
@@ -1230,6 +1292,16 @@ const SalesModule = ({ setActiveView }) => {
                     </span>
                   </td>
                   <td className="px-6 py-4 flex space-x-2">
+                    {/* Detalles */}
+                    <button
+                      className="text-blue-600 hover:text-blue-900"
+                      onClick={() => {
+                        setSelectedInvoice(invoice);
+                        setIsDetailOpen(true);
+                      }}
+                    >
+                      {icons.eye}
+                    </button>
                     {/* Editar */}
                     <button
                       className="text-indigo-600 hover:text-indigo-900"
@@ -1265,10 +1337,90 @@ const SalesModule = ({ setActiveView }) => {
         onSubmit={editingInvoice ? handleUpdateInvoice : handleCreateInvoice}
         clients={clients}
         products={products}
-        retenciones={retenciones} // 🔹 pasamos retenciones
+        retenciones={retenciones}
         initialData={editingInvoice}
         lastInvoiceNumber={lastInvoiceNumber}
       />
+
+      {/* Modal Detalle Factura */}
+      {isDetailOpen && selectedInvoice && (
+        <Modal
+          isOpen={isDetailOpen}
+          onClose={() => {
+            setIsDetailOpen(false);
+            setSelectedInvoice(null);
+          }}
+          title="Detalle de Factura"
+        >
+          <div className="space-y-3 text-sm">
+            <p>
+              <b>Número:</b> {selectedInvoice.invoiceNumber}
+            </p>
+            <p>
+              <b>Cliente:</b>{" "}
+              {clients.find((c) => c.id === selectedInvoice.clientId)?.name || "N/A"}
+            </p>
+            <p>
+              <b>Fecha:</b>{" "}
+              {selectedInvoice.date?.seconds
+                ? new Date(selectedInvoice.date.seconds * 1000).toLocaleDateString()
+                : "N/A"}
+            </p>
+
+            <table className="w-full border text-xs">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th>Producto</th>
+                  <th>Cant.</th>
+                  <th>Precio</th>
+                  <th>Desc.</th>
+                  <th>IVA</th>
+                  <th>Ret.</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedInvoice.items.map((item, i) => {
+                  const qty = item.quantity;
+                  const base = item.price * qty * (1 - item.discount / 100);
+                  const iva = base * ((item.tax || 0) / 100);
+                  const ret = base * ((item.retention || 0) / 100);
+                  const total = base + iva - ret;
+                  return (
+                    <tr key={i}>
+                      <td>{item.name}</td>
+                      <td>{qty}</td>
+                      <td>${item.price}</td>
+                      <td>{item.discount}%</td>
+                      <td>{item.tax}%</td>
+                      <td>{item.retention}%</td>
+                      <td>${total.toFixed(2)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            <div className="text-right space-y-1">
+              <p>Subtotal: ${selectedInvoice.subtotal?.toFixed(2)}</p>
+              <p>IVA: ${selectedInvoice.iva?.toFixed(2)}</p>
+              <p>Retenciones: -${selectedInvoice.retenciones?.toFixed(2)}</p>
+              <p className="text-lg font-bold">
+                Total Neto: ${selectedInvoice.total?.toFixed(2)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <Button variant="secondary" onClick={() => setIsDetailOpen(false)}>
+              Cerrar
+            </Button>
+            <Button variant="primary" onClick={() => generateInvoicePDF(selectedInvoice)}>
+              Descargar PDF
+            </Button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
@@ -1510,9 +1662,7 @@ const ThirdPartiesModule = () => {
                 {filtered.map((r) => (
                   <tr key={r.id} className="bg-white border-b hover:bg-gray-50">
                     <td className="px-6 py-3 capitalize">
-                      {Array.isArray(r.type)
-                        ? r.type.join(", ")
-                        : r.type || ""}
+                      {Array.isArray(r.type) ? r.type.join(", ") : r.type || ""}
                     </td>
                     <td className="px-6 py-3 capitalize">{r.personType}</td>
                     <td className="px-6 py-3">
@@ -2045,7 +2195,13 @@ const ProductsServicesModule = () => {
                   </label>
                   <input
                     type="text"
-                    value={form.createdAt ? new Date(form.createdAt.seconds * 1000).toLocaleDateString("es-CO") : ""}
+                    value={
+                      form.createdAt
+                        ? new Date(
+                            form.createdAt.seconds * 1000
+                          ).toLocaleDateString("es-CO")
+                        : ""
+                    }
                     readOnly
                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed"
                   />
@@ -2161,14 +2317,13 @@ const InvoiceFormModal = ({
     { label: "Retención por combustible 0.10%", value: 0.1 },
   ];
 
-  const getNextInvoiceNumber = (lastInvoiceNumber) => {
-    if (!lastInvoiceNumber) return null;
-    const match = lastInvoiceNumber.match(/^FV-(\d+)([A-Z0-9]+)?$/);
-    if (!match) return null;
-    const num = parseInt(match[1], 10) + 1;
-    const randomPart = Math.random().toString(36).substring(2, 5).toUpperCase();
-    return `FV-${String(num).padStart(3, "0")}${randomPart}`;
-  };
+ const getNextInvoiceNumber = (lastInvoiceNumber) => {
+  if (!lastInvoiceNumber) return "FV-001"; // primera factura
+  const match = lastInvoiceNumber.match(/^FV-(\d+)$/);
+  if (!match) return null;
+  const num = parseInt(match[1], 10) + 1;
+  return `FV-${String(num).padStart(3, "0")}`;
+};
 
   useEffect(() => {
     if (initialData) {
@@ -2297,14 +2452,21 @@ const InvoiceFormModal = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={initialData ? "Editar Factura de Venta" : "Crear Nueva Factura de Venta"}
+      title={
+        initialData ? "Editar Factura de Venta" : "Crear Nueva Factura de Venta"
+      }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {!initialData && lastInvoiceNumber && (
           <div className="p-2 bg-gray-100 rounded text-sm text-gray-700 space-y-1">
-            <p>Última factura registrada: <b>{lastInvoiceNumber}</b></p>
+            <p>
+              Última factura registrada: <b>{lastInvoiceNumber}</b>
+            </p>
             {getNextInvoiceNumber(lastInvoiceNumber) && (
-              <p>Siguiente sugerida: <b>{getNextInvoiceNumber(lastInvoiceNumber)}</b></p>
+              <p>
+                Siguiente sugerida:{" "}
+                <b>{getNextInvoiceNumber(lastInvoiceNumber)}</b>
+              </p>
             )}
           </div>
         )}
@@ -2316,8 +2478,9 @@ const InvoiceFormModal = ({
             value={tipoFactura}
             onChange={(e) => setTipoFactura(e.target.value)}
           >
-            <option value="Electrónica">FV-1 Factura Electrónica</option>
-            <option value="Física">FV-2 Documento Ingreso</option>
+            <option value="Física">FV-1 Documento Ingreso</option>
+            <option value="Electrónica">FV-2 Factura Electrónica</option>
+            
           </Select>
           <Select
             label="Cliente"
@@ -2342,7 +2505,9 @@ const InvoiceFormModal = ({
         </div>
 
         {/* Ítems */}
-        <h4 className="text-md font-semibold pt-4 border-t">Ítems de la Factura</h4>
+        <h4 className="text-md font-semibold pt-4 border-t">
+          Ítems de la Factura
+        </h4>
         <div className="grid grid-cols-14 gap-2 font-semibold text-gray-600 text-sm border-b pb-1">
           <div className="col-span-3">Producto</div>
           <div className="col-span-2">Cantidad</div>
@@ -2360,7 +2525,8 @@ const InvoiceFormModal = ({
           const desc = (Number(item.discount) || 0) / 100;
           const base = qty * price * (1 - desc);
           const taxRate = item.tax === "" ? 0 : Number(item.tax) / 100;
-          const retRate = item.retention === "" ? 0 : Number(item.retention) / 100;
+          const retRate =
+            item.retention === "" ? 0 : Number(item.retention) / 100;
           const totalItem = base + base * taxRate - base * retRate;
 
           return (
@@ -2368,7 +2534,9 @@ const InvoiceFormModal = ({
               <div className="col-span-3">
                 <Select
                   value={item.productId}
-                  onChange={(e) => handleItemChange(index, "productId", e.target.value)}
+                  onChange={(e) =>
+                    handleItemChange(index, "productId", e.target.value)
+                  }
                 >
                   <option value="">Seleccione producto</option>
                   {products.map((p) => (
@@ -2383,27 +2551,35 @@ const InvoiceFormModal = ({
                   type="number"
                   value={item.quantity}
                   min="1"
-                  onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                  onChange={(e) =>
+                    handleItemChange(index, "quantity", e.target.value)
+                  }
                 />
               </div>
               <div className="col-span-2">
                 <Input
                   type="number"
                   value={item.price}
-                  onChange={(e) => handleItemChange(index, "price", e.target.value)}
+                  onChange={(e) =>
+                    handleItemChange(index, "price", e.target.value)
+                  }
                 />
               </div>
               <div className="col-span-2">
                 <Input
                   type="number"
                   value={item.discount}
-                  onChange={(e) => handleItemChange(index, "discount", e.target.value)}
+                  onChange={(e) =>
+                    handleItemChange(index, "discount", e.target.value)
+                  }
                 />
               </div>
               <div className="col-span-2">
                 <Select
                   value={item.tax}
-                  onChange={(e) => handleItemChange(index, "tax", e.target.value)}
+                  onChange={(e) =>
+                    handleItemChange(index, "tax", e.target.value)
+                  }
                 >
                   <option value=""> </option>
                   <option value={0}>0% (Exento)</option>
@@ -2414,7 +2590,9 @@ const InvoiceFormModal = ({
               <div className="col-span-1">
                 <Select
                   value={item.retention}
-                  onChange={(e) => handleItemChange(index, "retention", e.target.value)}
+                  onChange={(e) =>
+                    handleItemChange(index, "retention", e.target.value)
+                  }
                 >
                   {retencionesOptions.map((r) => (
                     <option key={r.value} value={r.value}>
@@ -2445,9 +2623,16 @@ const InvoiceFormModal = ({
 
         {/* Totales */}
         <div className="mt-4 border-t pt-4 space-y-2 text-right">
-          <p>Subtotal: <b>${new Intl.NumberFormat("es-CO").format(subtotal)}</b></p>
-          <p>IVA: <b>${new Intl.NumberFormat("es-CO").format(iva)}</b></p>
-          <p>Retenciones: <b>-${new Intl.NumberFormat("es-CO").format(retenciones)}</b></p>
+          <p>
+            Subtotal: <b>${new Intl.NumberFormat("es-CO").format(subtotal)}</b>
+          </p>
+          <p>
+            IVA: <b>${new Intl.NumberFormat("es-CO").format(iva)}</b>
+          </p>
+          <p>
+            Retenciones:{" "}
+            <b>-${new Intl.NumberFormat("es-CO").format(retenciones)}</b>
+          </p>
           <p className="text-lg font-bold">
             Total Neto: ${new Intl.NumberFormat("es-CO").format(totalNeto)}
           </p>
@@ -2482,12 +2667,98 @@ const InvoiceFormModal = ({
     </Modal>
   );
 };
+// Modal Detalle de Factura
+const InvoiceDetailModal = ({ isOpen, onClose, invoice }) => {
+  if (!invoice) return null;
+
+  const handleDownloadPDF = () => {
+    // 🔹 aquí generamos PDF con reportlab (backend) o jsPDF (frontend)
+    generateInvoicePDF(invoice);
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Detalle de Factura">
+      <div className="space-y-3 text-sm">
+        <p>
+          <b>Número:</b> {invoice.invoiceNumber}
+        </p>
+        <p>
+          <b>Fecha:</b>{" "}
+          {invoice.date?.seconds
+            ? new Date(invoice.date.seconds * 1000).toLocaleDateString()
+            : "N/A"}
+        </p>
+        <p>
+          <b>Cliente:</b> {invoice.clientName || invoice.clientId}
+        </p>
+        <p>
+          <b>Vendedor:</b> {invoice.vendedor}
+        </p>
+
+        {/* Items */}
+        <table className="w-full border text-xs">
+          <thead className="bg-gray-100">
+            <tr>
+              <th>Producto</th>
+              <th>Cant.</th>
+              <th>Precio</th>
+              <th>Desc.</th>
+              <th>IVA</th>
+              <th>Ret.</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.items.map((item, i) => {
+              const qty = item.quantity;
+              const base = item.price * qty * (1 - item.discount / 100);
+              const iva = base * ((item.tax || 0) / 100);
+              const ret = base * ((item.retention || 0) / 100);
+              const total = base + iva - ret;
+              return (
+                <tr key={i}>
+                  <td>{item.name}</td>
+                  <td>{qty}</td>
+                  <td>${item.price}</td>
+                  <td>{item.discount}%</td>
+                  <td>{item.tax}%</td>
+                  <td>{item.retention}%</td>
+                  <td>${total.toFixed(2)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {/* Totales */}
+        <div className="text-right space-y-1">
+          <p>Subtotal: ${invoice.subtotal?.toFixed(2)}</p>
+          <p>IVA: ${invoice.iva?.toFixed(2)}</p>
+          <p>Retenciones: -${invoice.retenciones?.toFixed(2)}</p>
+          <p className="text-lg font-bold">
+            Total Neto: ${invoice.total?.toFixed(2)}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex justify-end space-x-3 pt-4">
+        <Button variant="secondary" onClick={onClose}>
+          Cerrar
+        </Button>
+        <Button variant="primary" onClick={handleDownloadPDF}>
+          Descargar PDF
+        </Button>
+      </div>
+    </Modal>
+  );
+};
 
 // --- Componente Principal de la App ---
 export default function App() {
   return (
     <AppProvider>
       <Main />
+      <Toaster position="top-right" reverseOrder={false} />
     </AppProvider>
   );
 }
