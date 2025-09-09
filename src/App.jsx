@@ -2,6 +2,7 @@ import React, { useState, useEffect, createContext, useContext } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { initializeApp } from "firebase/app";
 
 import {
@@ -782,8 +783,6 @@ const AuthScreen = () => {
   );
 };
 // --- Layout Principal de la Aplicación ---
-import { ChevronLeft, ChevronRight } from "lucide-react";
-
 const AppLayout = () => {
   const { userData, companyData } = useApp();
   const [activeView, setActiveView] = useState("dashboard");
@@ -817,6 +816,8 @@ const AppLayout = () => {
         return <Dashboard />;
       case "sales":
         return <SalesModule setActiveView={setActiveView} />;
+      case "purchases":
+        return <PurchaseModule setActiveView={setActiveView} />;
       case "thirdparties":
         return <ThirdPartiesModule />;
       case "products":
@@ -1030,7 +1031,9 @@ const SalesModule = ({ setActiveView }) => {
   useEffect(() => {
     if (!companyData) return;
     setLoading(true);
-    const q = query(collection(db, `companies/${companyData.id}/invoices_sales`));
+    const q = query(
+      collection(db, `companies/${companyData.id}/invoices_sales`)
+    );
     const unsubscribe = onSnapshot(
       q,
       (querySnapshot) => {
@@ -1052,9 +1055,15 @@ const SalesModule = ({ setActiveView }) => {
   // --- Obtener clientes, productos y retenciones ---
   useEffect(() => {
     if (!companyData) return;
-    const clientsQuery = query(collection(db, `companies/${companyData.id}/thirdparties`));
-    const productsQuery = query(collection(db, `companies/${companyData.id}/products`));
-    const retencionesQuery = query(collection(db, `companies/${companyData.id}/retenciones`));
+    const clientsQuery = query(
+      collection(db, `companies/${companyData.id}/thirdparties`)
+    );
+    const productsQuery = query(
+      collection(db, `companies/${companyData.id}/products`)
+    );
+    const retencionesQuery = query(
+      collection(db, `companies/${companyData.id}/retenciones`)
+    );
 
     const unsubClients = onSnapshot(clientsQuery, (snapshot) => {
       setClients(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
@@ -1063,7 +1072,9 @@ const SalesModule = ({ setActiveView }) => {
       setProducts(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
     const unsubRetenciones = onSnapshot(retencionesQuery, (snapshot) => {
-      setRetenciones(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+      setRetenciones(
+        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      );
     });
 
     return () => {
@@ -1099,14 +1110,22 @@ const SalesModule = ({ setActiveView }) => {
     if (!companyData) return;
     const toastId = toast.loading("Creando factura...");
     try {
-      const counterRef = doc(db, `companies/${companyData.id}/counters/invoices_sales`);
+      const counterRef = doc(
+        db,
+        `companies/${companyData.id}/counters/invoices_sales`
+      );
       await setDoc(counterRef, { lastNumber: increment(1) }, { merge: true });
 
       const counterSnap = await getDoc(counterRef);
-      const nextNumber = counterSnap.exists() ? counterSnap.data().lastNumber : 1;
+      const nextNumber = counterSnap.exists()
+        ? counterSnap.data().lastNumber
+        : 1;
       const invoiceNumber = `FV-${String(nextNumber).padStart(3, "0")}`;
 
-      const invoicesRef = collection(db, `companies/${companyData.id}/invoices_sales`);
+      const invoicesRef = collection(
+        db,
+        `companies/${companyData.id}/invoices_sales`
+      );
       const newInvoiceRef = await addDoc(invoicesRef, {
         ...invoiceData,
         companyId: companyData.id,
@@ -1130,7 +1149,10 @@ const SalesModule = ({ setActiveView }) => {
     if (!companyData || !editingInvoice) return;
     const toastId = toast.loading("Actualizando factura...");
     try {
-      const invoiceRef = doc(db, `companies/${companyData.id}/invoices_sales/${editingInvoice.id}`);
+      const invoiceRef = doc(
+        db,
+        `companies/${companyData.id}/invoices_sales/${editingInvoice.id}`
+      );
       await updateDoc(invoiceRef, {
         ...invoiceData,
         updatedAt: serverTimestamp(),
@@ -1168,7 +1190,9 @@ const SalesModule = ({ setActiveView }) => {
     doc.setFontSize(10);
     doc.text(`Número: ${invoice.invoiceNumber}`, 14, 28);
     doc.text(
-      `Cliente: ${clients.find((c) => c.id === invoice.clientId)?.name || "N/A"}`,
+      `Cliente: ${
+        clients.find((c) => c.id === invoice.clientId)?.name || "N/A"
+      }`,
       14,
       34
     );
@@ -1191,11 +1215,23 @@ const SalesModule = ({ setActiveView }) => {
     });
 
     // Totales
-    doc.text(`Subtotal: $${invoice.subtotal}`, 14, doc.lastAutoTable.finalY + 10);
+    doc.text(
+      `Subtotal: $${invoice.subtotal}`,
+      14,
+      doc.lastAutoTable.finalY + 10
+    );
     doc.text(`IVA: $${invoice.iva}`, 14, doc.lastAutoTable.finalY + 16);
-    doc.text(`Retenciones: -$${invoice.retenciones}`, 14, doc.lastAutoTable.finalY + 22);
+    doc.text(
+      `Retenciones: -$${invoice.retenciones}`,
+      14,
+      doc.lastAutoTable.finalY + 22
+    );
     doc.setFontSize(12);
-    doc.text(`Total Neto: $${invoice.total}`, 14, doc.lastAutoTable.finalY + 32);
+    doc.text(
+      `Total Neto: $${invoice.total}`,
+      14,
+      doc.lastAutoTable.finalY + 32
+    );
 
     doc.save(`Factura_${invoice.invoiceNumber}.pdf`);
   };
@@ -1208,9 +1244,13 @@ const SalesModule = ({ setActiveView }) => {
           <button className="border-b-2 border-blue-600 text-blue-600 pb-2">
             Documentos de venta
           </button>
-          <button className="pb-2 hover:text-blue-600">Facturas recurrentes</button>
+          <button className="pb-2 hover:text-blue-600">
+            Facturas recurrentes
+          </button>
           <button className="pb-2 hover:text-blue-600">Clientes</button>
-          <button className="pb-2 hover:text-blue-600">Seguimiento comercial</button>
+          <button className="pb-2 hover:text-blue-600">
+            Seguimiento comercial
+          </button>
         </nav>
       </div>
 
@@ -1225,7 +1265,11 @@ const SalesModule = ({ setActiveView }) => {
           <Button variant="secondary">{icons.filter} Filtros</Button>
         </div>
         <div className="flex space-x-2">
-          <Button type="button" variant="secondary" onClick={() => setActiveView("thirdparties")}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setActiveView("thirdparties")}
+          >
             {icons.userPlus} Crear Cliente
           </Button>
           <Button
@@ -1259,20 +1303,27 @@ const SalesModule = ({ setActiveView }) => {
             </thead>
             <tbody>
               {invoices.map((invoice) => (
-                <tr key={invoice.id} className="bg-white border-b hover:bg-gray-50">
+                <tr
+                  key={invoice.id}
+                  className="bg-white border-b hover:bg-gray-50"
+                >
                   <td className="px-6 py-4">
                     {invoice.date?.seconds
-                      ? new Date(invoice.date.seconds * 1000).toLocaleDateString()
+                      ? new Date(
+                          invoice.date.seconds * 1000
+                        ).toLocaleDateString()
                       : "N/A"}
                   </td>
                   <td className="px-6 py-4 font-medium text-blue-600">
                     {invoice.invoiceNumber || "FV-SINID"}
                   </td>
                   <td className="px-6 py-4">
-                    {clients.find((c) => c.id === invoice.clientId)?.idNumber || "N/A"}
+                    {clients.find((c) => c.id === invoice.clientId)?.idNumber ||
+                      "N/A"}
                   </td>
                   <td className="px-6 py-4">
-                    {clients.find((c) => c.id === invoice.clientId)?.name || "Consumidor Final"}
+                    {clients.find((c) => c.id === invoice.clientId)?.name ||
+                      "Consumidor Final"}
                   </td>
                   <td className="px-6 py-4">
                     ${new Intl.NumberFormat("es-CO").format(invoice.total || 0)}
@@ -1358,12 +1409,15 @@ const SalesModule = ({ setActiveView }) => {
             </p>
             <p>
               <b>Cliente:</b>{" "}
-              {clients.find((c) => c.id === selectedInvoice.clientId)?.name || "N/A"}
+              {clients.find((c) => c.id === selectedInvoice.clientId)?.name ||
+                "N/A"}
             </p>
             <p>
               <b>Fecha:</b>{" "}
               {selectedInvoice.date?.seconds
-                ? new Date(selectedInvoice.date.seconds * 1000).toLocaleDateString()
+                ? new Date(
+                    selectedInvoice.date.seconds * 1000
+                  ).toLocaleDateString()
                 : "N/A"}
             </p>
 
@@ -1415,7 +1469,484 @@ const SalesModule = ({ setActiveView }) => {
             <Button variant="secondary" onClick={() => setIsDetailOpen(false)}>
               Cerrar
             </Button>
-            <Button variant="primary" onClick={() => generateInvoicePDF(selectedInvoice)}>
+            <Button
+              variant="primary"
+              onClick={() => generateInvoicePDF(selectedInvoice)}
+            >
+              Descargar PDF
+            </Button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+};
+// --- Módulo de Compras ---
+const PurchaseModule = ({ setActiveView }) => {
+  const { companyData } = useApp();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState(null);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [invoices, setInvoices] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [retenciones, setRetenciones] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [lastInvoiceNumber, setLastInvoiceNumber] = useState(null);
+
+  // --- Obtener facturas de compra ---
+  useEffect(() => {
+    if (!companyData) return;
+    setLoading(true);
+    const q = query(
+      collection(db, `companies/${companyData.id}/invoices_purchases`)
+    );
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const invoicesData = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setInvoices(invoicesData);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error fetching purchase invoices: ", error);
+        setLoading(false);
+      }
+    );
+    return () => unsubscribe();
+  }, [companyData]);
+
+  // --- Obtener proveedores, productos y retenciones ---
+  useEffect(() => {
+    if (!companyData) return;
+    const suppliersQuery = query(
+      collection(db, `companies/${companyData.id}/thirdparties`)
+    );
+    const productsQuery = query(
+      collection(db, `companies/${companyData.id}/products`)
+    );
+    const retencionesQuery = query(
+      collection(db, `companies/${companyData.id}/retenciones`)
+    );
+
+    const unsubSuppliers = onSnapshot(suppliersQuery, (snapshot) => {
+      setSuppliers(
+        snapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter((s) => Array.isArray(s.type) && s.type.includes("proveedor"))
+      );
+    });
+    const unsubProducts = onSnapshot(productsQuery, (snapshot) => {
+      setProducts(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    });
+    const unsubRetenciones = onSnapshot(retencionesQuery, (snapshot) => {
+      setRetenciones(
+        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      );
+    });
+
+    return () => {
+      unsubSuppliers();
+      unsubProducts();
+      unsubRetenciones();
+    };
+  }, [companyData]);
+
+  // --- Última factura de compra registrada ---
+  useEffect(() => {
+    if (!companyData) return;
+    const q = query(
+      collection(db, `companies/${companyData.id}/invoices_purchases`),
+      orderBy("createdAt", "desc"),
+      limit(1)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const lastInvoice = snapshot.docs[0].data();
+        setLastInvoiceNumber(lastInvoice.invoiceNumber);
+      } else {
+        setLastInvoiceNumber(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [companyData]);
+
+  // --- Crear factura de compra ---
+  const handleCreateInvoice = async (invoiceData) => {
+    if (!companyData) return;
+    const toastId = toast.loading("Creando factura de compra...");
+    try {
+      const counterRef = doc(
+        db,
+        `companies/${companyData.id}/counters/invoices_purchases`
+      );
+      await setDoc(counterRef, { lastNumber: increment(1) }, { merge: true });
+
+      const counterSnap = await getDoc(counterRef);
+      const nextNumber = counterSnap.exists()
+        ? counterSnap.data().lastNumber
+        : 1;
+      const invoiceNumber = `FC-${String(nextNumber).padStart(3, "0")}`;
+
+      const invoicesRef = collection(
+        db,
+        `companies/${companyData.id}/invoices_purchases`
+      );
+      const newInvoiceRef = await addDoc(invoicesRef, {
+        ...invoiceData,
+        companyId: companyData.id,
+        invoiceNumber,
+        createdAt: serverTimestamp(),
+        status: "Pendiente",
+      });
+
+      await updateDoc(newInvoiceRef, { id: newInvoiceRef.id });
+
+      setIsModalOpen(false);
+      toast.success("✅ Factura de compra creada con éxito", { id: toastId });
+    } catch (error) {
+      console.error("Error creating purchase invoice: ", error);
+      toast.error("❌ Error al crear la factura de compra", { id: toastId });
+    }
+  };
+
+  // --- Editar factura ---
+  const handleUpdateInvoice = async (invoiceData) => {
+    if (!companyData || !editingInvoice) return;
+    const toastId = toast.loading("Actualizando factura de compra...");
+    try {
+      const invoiceRef = doc(
+        db,
+        `companies/${companyData.id}/invoices_purchases/${editingInvoice.id}`
+      );
+      await updateDoc(invoiceRef, {
+        ...invoiceData,
+        updatedAt: serverTimestamp(),
+      });
+      setEditingInvoice(null);
+      setIsModalOpen(false);
+      toast.success("✅ Factura de compra actualizada correctamente", {
+        id: toastId,
+      });
+    } catch (error) {
+      console.error("Error updating purchase invoice: ", error);
+      toast.error("❌ Error al actualizar la factura de compra", {
+        id: toastId,
+      });
+    }
+  };
+
+  // --- Eliminar factura ---
+  const handleDeleteInvoice = async (id) => {
+    if (!companyData) return;
+    if (!window.confirm("¿Seguro que deseas eliminar esta factura de compra?"))
+      return;
+    const toastId = toast.loading("Eliminando factura de compra...");
+    try {
+      const path = `companies/${companyData.id}/invoices_purchases/${id}`;
+      await deleteDoc(doc(db, path));
+      toast.success("✅ Factura eliminada correctamente", { id: toastId });
+    } catch (error) {
+      console.error("❌ Error deleting purchase invoice: ", error);
+      toast.error("❌ Error eliminando factura", { id: toastId });
+    }
+  };
+
+  // --- Descargar PDF ---
+  const generateInvoicePDF = (invoice) => {
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.text("Factura de Compra", 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Número: ${invoice.invoiceNumber}`, 14, 28);
+    doc.text(
+      `Proveedor: ${
+        suppliers.find((s) => s.id === invoice.supplierId)?.name || "N/A"
+      }`,
+      14,
+      34
+    );
+
+    // Items
+    const rows = invoice.items.map((item) => [
+      item.name,
+      item.quantity,
+      `$${item.price}`,
+      `${item.discount}%`,
+      `${item.tax}%`,
+      `${item.retention}%`,
+      `$${(item.price * item.quantity).toFixed(2)}`,
+    ]);
+
+    doc.autoTable({
+      head: [["Producto", "Cant.", "Precio", "Desc.", "IVA", "Ret.", "Total"]],
+      body: rows,
+      startY: 40,
+    });
+
+    // Totales
+    doc.text(
+      `Subtotal: $${invoice.subtotal}`,
+      14,
+      doc.lastAutoTable.finalY + 10
+    );
+    doc.text(`IVA: $${invoice.iva}`, 14, doc.lastAutoTable.finalY + 16);
+    doc.text(
+      `Retenciones: -$${invoice.retenciones}`,
+      14,
+      doc.lastAutoTable.finalY + 22
+    );
+    doc.setFontSize(12);
+    doc.text(
+      `Total Neto: $${invoice.total}`,
+      14,
+      doc.lastAutoTable.finalY + 32
+    );
+
+    doc.save(`FacturaCompra_${invoice.invoiceNumber}.pdf`);
+  };
+
+  return (
+    <div>
+      {/* Tabs */}
+      <div className="border-b mb-4">
+        <nav className="flex space-x-6 text-sm font-medium text-gray-600">
+          <button className="border-b-2 border-blue-600 text-blue-600 pb-2">
+            Documentos de compra
+          </button>
+          <button className="pb-2 hover:text-blue-600">Proveedores</button>
+          <button className="pb-2 hover:text-blue-600">
+            Órdenes de compra
+          </button>
+        </nav>
+      </div>
+
+      {/* Acciones */}
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex space-x-2">
+          <input
+            type="text"
+            placeholder="Buscar por Identificación o Proveedor"
+            className="border px-3 py-2 rounded-lg text-sm w-80"
+          />
+          <Button variant="secondary">{icons.filter} Filtros</Button>
+        </div>
+        <div className="flex space-x-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setActiveView("thirdparties")}
+          >
+            {icons.userPlus} Crear Proveedor
+          </Button>
+          <Button
+            onClick={() => {
+              setEditingInvoice(null);
+              setIsModalOpen(true);
+            }}
+          >
+            {icons.plus} Nueva Factura de Compra
+          </Button>
+        </div>
+      </div>
+
+      {/* Tabla de facturas */}
+      <Card title="Facturas de Compra">
+        {loading ? (
+          <Spinner />
+        ) : (
+          <table className="w-full text-sm text-left text-gray-500">
+            <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+              <tr>
+                <th className="px-6 py-3">Fecha</th>
+                <th className="px-6 py-3">Comprobante</th>
+                <th className="px-6 py-3">Identificación</th>
+                <th className="px-6 py-3">Proveedor</th>
+                <th className="px-6 py-3">Total</th>
+                <th className="px-6 py-3">Moneda</th>
+                <th className="px-6 py-3">Estado</th>
+                <th className="px-6 py-3">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((invoice) => (
+                <tr
+                  key={invoice.id}
+                  className="bg-white border-b hover:bg-gray-50"
+                >
+                  <td className="px-6 py-4">
+                    {invoice.date?.seconds
+                      ? new Date(
+                          invoice.date.seconds * 1000
+                        ).toLocaleDateString()
+                      : "N/A"}
+                  </td>
+                  <td className="px-6 py-4 font-medium text-blue-600">
+                    {invoice.invoiceNumber || "FC-SINID"}
+                  </td>
+                  <td className="px-6 py-4">
+                    {suppliers.find((s) => s.id === invoice.supplierId)
+                      ?.idNumber || "N/A"}
+                  </td>
+                  <td className="px-6 py-4">
+                    {suppliers.find((s) => s.id === invoice.supplierId)?.name ||
+                      "Proveedor"}
+                  </td>
+                  <td className="px-6 py-4">
+                    ${new Intl.NumberFormat("es-CO").format(invoice.total || 0)}
+                  </td>
+                  <td className="px-6 py-4">COP</td>
+                  <td className="px-6 py-4">
+                    <span
+                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        invoice.status === "Pagada"
+                          ? "bg-green-100 text-green-800"
+                          : invoice.status === "Vencida"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
+                      {invoice.status || "Pendiente"}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 flex space-x-2">
+                    {/* Detalles */}
+                    <button
+                      className="text-blue-600 hover:text-blue-900"
+                      onClick={() => {
+                        setSelectedInvoice(invoice);
+                        setIsDetailOpen(true);
+                      }}
+                    >
+                      {icons.eye}
+                    </button>
+                    {/* Editar */}
+                    <button
+                      className="text-indigo-600 hover:text-indigo-900"
+                      onClick={() => {
+                        setEditingInvoice(invoice);
+                        setIsModalOpen(true);
+                      }}
+                    >
+                      {icons.edit}
+                    </button>
+                    {/* Eliminar */}
+                    <button
+                      className="text-red-600 hover:text-red-900"
+                      onClick={() => handleDeleteInvoice(invoice.id)}
+                    >
+                      {icons.trash}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {/* Modal Crear/Editar Factura */}
+      <PurchaseFormModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingInvoice(null);
+        }}
+        onSubmit={editingInvoice ? handleUpdateInvoice : handleCreateInvoice}
+        suppliers={suppliers}
+        products={products}
+        retenciones={retenciones}
+        initialData={editingInvoice}
+        lastInvoiceNumber={lastInvoiceNumber}
+      />
+
+      {/* Modal Detalle Factura */}
+      {isDetailOpen && selectedInvoice && (
+        <Modal
+          isOpen={isDetailOpen}
+          onClose={() => {
+            setIsDetailOpen(false);
+            setSelectedInvoice(null);
+          }}
+          title="Detalle de Factura de Compra"
+        >
+          <div className="space-y-3 text-sm">
+            <p>
+              <b>Número:</b> {selectedInvoice.invoiceNumber}
+            </p>
+            <p>
+              <b>Proveedor:</b>{" "}
+              {suppliers.find((s) => s.id === selectedInvoice.supplierId)
+                ?.name || "N/A"}
+            </p>
+            <p>
+              <b>Fecha:</b>{" "}
+              {selectedInvoice.date?.seconds
+                ? new Date(
+                    selectedInvoice.date.seconds * 1000
+                  ).toLocaleDateString()
+                : "N/A"}
+            </p>
+
+            <table className="w-full border text-xs">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th>Producto</th>
+                  <th>Cant.</th>
+                  <th>Precio</th>
+                  <th>Desc.</th>
+                  <th>IVA</th>
+                  <th>Ret.</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedInvoice.items.map((item, i) => {
+                  const qty = item.quantity;
+                  const base = item.price * qty * (1 - item.discount / 100);
+                  const iva = base * ((item.tax || 0) / 100);
+                  const ret = base * ((item.retention || 0) / 100);
+                  const total = base + iva - ret;
+                  return (
+                    <tr key={i}>
+                      <td>{item.name}</td>
+                      <td>{qty}</td>
+                      <td>${item.price}</td>
+                      <td>{item.discount}%</td>
+                      <td>{item.tax}%</td>
+                      <td>{item.retention}%</td>
+                      <td>${total.toFixed(2)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            <div className="text-right space-y-1">
+              <p>Subtotal: ${selectedInvoice.subtotal?.toFixed(2)}</p>
+              <p>IVA: ${selectedInvoice.iva?.toFixed(2)}</p>
+              <p>Retenciones: -${selectedInvoice.retenciones?.toFixed(2)}</p>
+              <p className="text-lg font-bold">
+                Total Neto: ${selectedInvoice.total?.toFixed(2)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <Button variant="secondary" onClick={() => setIsDetailOpen(false)}>
+              Cerrar
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => generateInvoicePDF(selectedInvoice)}
+            >
               Descargar PDF
             </Button>
           </div>
@@ -2317,13 +2848,13 @@ const InvoiceFormModal = ({
     { label: "Retención por combustible 0.10%", value: 0.1 },
   ];
 
- const getNextInvoiceNumber = (lastInvoiceNumber) => {
-  if (!lastInvoiceNumber) return "FV-001"; // primera factura
-  const match = lastInvoiceNumber.match(/^FV-(\d+)$/);
-  if (!match) return null;
-  const num = parseInt(match[1], 10) + 1;
-  return `FV-${String(num).padStart(3, "0")}`;
-};
+  const getNextInvoiceNumber = (lastInvoiceNumber) => {
+    if (!lastInvoiceNumber) return "FV-001"; // primera factura
+    const match = lastInvoiceNumber.match(/^FV-(\d+)$/);
+    if (!match) return null;
+    const num = parseInt(match[1], 10) + 1;
+    return `FV-${String(num).padStart(3, "0")}`;
+  };
 
   useEffect(() => {
     if (initialData) {
@@ -2480,7 +3011,6 @@ const InvoiceFormModal = ({
           >
             <option value="Física">FV-1 Documento Ingreso</option>
             <option value="Electrónica">FV-2 Factura Electrónica</option>
-            
           </Select>
           <Select
             label="Cliente"
@@ -2639,6 +3169,425 @@ const InvoiceFormModal = ({
         </div>
 
         {/* Forma de pago */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 border-t pt-4">
+          <Select
+            label="Forma de Pago"
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+          >
+            <option value="Efectivo">Efectivo</option>
+            <option value="Crédito">Crédito</option>
+          </Select>
+          <Input
+            label="Observaciones"
+            value={observaciones}
+            onChange={(e) => setObservaciones(e.target.value)}
+          />
+        </div>
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" variant="primary">
+            {initialData ? "Actualizar Factura" : "Guardar Factura"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+const PurchaseFormModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  suppliers,
+  products,
+  initialData,
+  lastInvoiceNumber,
+}) => {
+  const { userData } = useApp();
+
+  const [supplierId, setSupplierId] = useState("");
+  const [date, setDate] = useState(() => {
+    const today = new Date();
+    return new Date(today.getTime() - today.getTimezoneOffset() * 60000)
+      .toISOString()
+      .split("T")[0];
+  });
+  const [supplierPrefix, setSupplierPrefix] = useState("FC");
+  const [supplierConsecutive, setSupplierConsecutive] = useState("");
+  const [items, setItems] = useState([
+    {
+      productId: "",
+      code: "",
+      name: "",
+      quantity: 1,
+      price: 0,
+      discount: 0,
+      tax: "",
+      retention: "",
+    },
+  ]);
+  const [paymentMethod, setPaymentMethod] = useState("Efectivo");
+  const [observaciones, setObservaciones] = useState("");
+
+  // Totales
+  const [subtotal, setSubtotal] = useState(0);
+  const [iva, setIva] = useState(0);
+  const [retenciones, setRetenciones] = useState(0);
+  const [totalNeto, setTotalNeto] = useState(0);
+
+  // Retenciones disponibles
+  const retencionesOptions = [
+    { label: " ", value: "" },
+    { label: "Retefuente 20%", value: 20 },
+    { label: "Retefuente 11%", value: 11 },
+    { label: "Retefuente 10%", value: 10 },
+    { label: "Retefuente 7%", value: 7 },
+    { label: "Retefuente 6%", value: 6 },
+    { label: "Retefuente 4%", value: 4 },
+    { label: "Retefuente 3.5%", value: 3.5 },
+    { label: "Retefuente 2.5%", value: 2.5 },
+    { label: "Retefuente 2%", value: 2 },
+    { label: "Retefuente 1.5%", value: 1.5 },
+    { label: "Retefuente 1%", value: 1 },
+    { label: "Retefuente 0.50%", value: 0.5 },
+    { label: "Retefuente 0.10%", value: 0.1 },
+  ];
+
+  // --- Consecutivo sugerido ---
+  const getNextInvoiceNumber = (lastInvoiceNumber) => {
+    if (!lastInvoiceNumber) return "FC-001";
+    const match = lastInvoiceNumber.match(/^FC-(\d+)$/);
+    if (!match) return null;
+    const num = parseInt(match[1], 10) + 1;
+    return `FC-${String(num).padStart(3, "0")}`;
+  };
+
+  useEffect(() => {
+    if (initialData) {
+      setSupplierId(initialData.supplierId || "");
+      setDate(
+        initialData.date
+          ? new Date(initialData.date.seconds * 1000)
+              .toISOString()
+              .split("T")[0]
+          : date
+      );
+      if (initialData.supplierInvoice) {
+        const parts = initialData.supplierInvoice.split("-");
+        setSupplierPrefix(parts[0] || "FC");
+        setSupplierConsecutive(parts[1] || "");
+      }
+      setItems(initialData.items || []);
+      setPaymentMethod(initialData.paymentMethod || "Efectivo");
+      setObservaciones(initialData.observaciones || "");
+    }
+  }, [initialData, date]);
+
+  // --- Cambios en ítems ---
+  const handleItemChange = (index, field, value) => {
+    const newItems = [...items];
+    newItems[index][field] = value;
+
+    if (field === "productId") {
+      if (value === "") {
+        newItems[index] = {
+          productId: "",
+          code: "",
+          name: "",
+          quantity: 1,
+          price: 0,
+          discount: 0,
+          tax: "",
+          retention: "",
+        };
+      } else {
+        const product = products.find((p) => p.id === value);
+        if (product) {
+          newItems[index].price = product.unitValue || 0;
+          newItems[index].tax = product.iva ?? "";
+          newItems[index].code = product.code || "";
+          newItems[index].name = product.name || product.description || "";
+        }
+      }
+    }
+
+    setItems(newItems);
+  };
+
+  const addItem = () =>
+    setItems([
+      ...items,
+      {
+        productId: "",
+        code: "",
+        name: "",
+        quantity: 1,
+        price: 0,
+        discount: 0,
+        tax: "",
+        retention: "",
+      },
+    ]);
+
+  const removeItem = (i) => setItems(items.filter((_, idx) => idx !== i));
+
+  // --- Totales automáticos ---
+  useEffect(() => {
+    let sub = 0;
+    let ivaCalc = 0;
+    let retCalc = 0;
+
+    items.forEach((item) => {
+      const qty = Number(item.quantity) || 0;
+      const price = Number(item.price) || 0;
+      const desc = (Number(item.discount) || 0) / 100;
+      const base = qty * price * (1 - desc);
+
+      const taxRate = item.tax === "" ? 0 : Number(item.tax) / 100;
+      const retRate = item.retention === "" ? 0 : Number(item.retention) / 100;
+
+      sub += base;
+      ivaCalc += base * taxRate;
+      retCalc += base * retRate;
+    });
+
+    setSubtotal(sub);
+    setIva(ivaCalc);
+    setRetenciones(retCalc);
+    setTotalNeto(sub + ivaCalc - retCalc);
+  }, [items]);
+
+  // --- Submit ---
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const newInvoiceNumber = !initialData
+      ? getNextInvoiceNumber(lastInvoiceNumber)
+      : initialData.invoiceNumber;
+
+    const invoiceData = {
+      id: initialData?.id || null,
+      supplierId,
+      supplierInvoice: `${supplierPrefix}-${supplierConsecutive}`,
+      comprador: userData?.name || "Usuario",
+      date: new Date(date),
+      items: items.map((i) => ({
+        ...i,
+        quantity: Number(i.quantity),
+        price: Number(i.price),
+        discount: Number(i.discount),
+        tax: i.tax === "" ? null : Number(i.tax),
+        retention: i.retention === "" ? null : Number(i.retention),
+      })),
+      paymentMethod,
+      observaciones,
+      subtotal,
+      iva,
+      retenciones,
+      total: totalNeto,
+      invoiceNumber: newInvoiceNumber,
+    };
+
+    onSubmit(invoiceData);
+    onClose();
+  };
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={
+        initialData ? "Editar Factura de Compra" : "Nueva Factura de Compra"
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {!initialData && lastInvoiceNumber && (
+          <div className="p-2 bg-gray-100 rounded text-sm text-gray-700 space-y-1">
+            <p>
+              Última factura registrada: <b>{lastInvoiceNumber}</b>
+            </p>
+            {getNextInvoiceNumber(lastInvoiceNumber) && (
+              <p>
+                Siguiente sugerida:{" "}
+                <b>{getNextInvoiceNumber(lastInvoiceNumber)}</b>
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Encabezado */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Select
+            label="Proveedor"
+            value={supplierId}
+            onChange={(e) => setSupplierId(e.target.value)}
+            required
+          >
+            <option value="">Seleccione un proveedor</option>
+            {suppliers.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} - {s.idNumber}
+              </option>
+            ))}
+          </Select>
+          <Input
+            label="Fecha de Elaboración"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+          <div className="flex items-end space-x-2">
+            <Input
+              label="Nº Factura Proveedor (Prefijo)"
+              value={supplierPrefix}
+              onChange={(e) => setSupplierPrefix(e.target.value)}
+            />
+            <Input
+              label="Consecutivo"
+              value={supplierConsecutive}
+              onChange={(e) => setSupplierConsecutive(e.target.value)}
+            />
+          </div>
+          <Input label="Comprador" value={userData?.name || ""} readOnly />
+        </div>
+
+        {/* Ítems */}
+        <h4 className="text-md font-semibold pt-4 border-t">
+          Ítems de la Compra
+        </h4>
+        <div className="grid grid-cols-14 gap-2 font-semibold text-gray-600 text-sm border-b pb-1">
+          <div className="col-span-3">Producto</div>
+          <div className="col-span-2">Cantidad</div>
+          <div className="col-span-2">Valor Unitario</div>
+          <div className="col-span-2">% Desc.</div>
+          <div className="col-span-2">Impuesto</div>
+          <div className="col-span-1">% Ret.</div>
+          <div className="col-span-1">Valor Total</div>
+          <div className="w-8 flex justify-center"></div>
+        </div>
+
+        {items.map((item, index) => {
+          const qty = Number(item.quantity) || 0;
+          const price = Number(item.price) || 0;
+          const desc = (Number(item.discount) || 0) / 100;
+          const base = qty * price * (1 - desc);
+          const taxRate = item.tax === "" ? 0 : Number(item.tax) / 100;
+          const retRate =
+            item.retention === "" ? 0 : Number(item.retention) / 100;
+          const totalItem = base + base * taxRate - base * retRate;
+
+          return (
+            <div key={index} className="grid grid-cols-14 gap-2 items-center">
+              <div className="col-span-3">
+                <Select
+                  value={item.productId}
+                  onChange={(e) =>
+                    handleItemChange(index, "productId", e.target.value)
+                  }
+                >
+                  <option value="">Seleccione producto</option>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.code} - {p.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="col-span-2">
+                <Input
+                  type="number"
+                  value={item.quantity}
+                  min="1"
+                  onChange={(e) =>
+                    handleItemChange(index, "quantity", e.target.value)
+                  }
+                />
+              </div>
+              <div className="col-span-2">
+                <Input
+                  type="number"
+                  value={item.price}
+                  onChange={(e) =>
+                    handleItemChange(index, "price", e.target.value)
+                  }
+                />
+              </div>
+              <div className="col-span-2">
+                <Input
+                  type="number"
+                  value={item.discount}
+                  onChange={(e) =>
+                    handleItemChange(index, "discount", e.target.value)
+                  }
+                />
+              </div>
+              <div className="col-span-2">
+                <Select
+                  value={item.tax}
+                  onChange={(e) =>
+                    handleItemChange(index, "tax", e.target.value)
+                  }
+                >
+                  <option value=""> </option>
+                  <option value={0}>0% (Exento)</option>
+                  <option value={5}>5%</option>
+                  <option value={19}>19%</option>
+                </Select>
+              </div>
+              <div className="col-span-1">
+                <Select
+                  value={item.retention}
+                  onChange={(e) =>
+                    handleItemChange(index, "retention", e.target.value)
+                  }
+                >
+                  {retencionesOptions.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="col-span-1 text-right font-semibold">
+                {new Intl.NumberFormat("es-CO").format(totalItem)}
+              </div>
+              <div className="w-8 flex justify-center items-center">
+                <button
+                  type="button"
+                  className="text-red-500 hover:text-red-700 p-1"
+                  onClick={() => removeItem(index)}
+                >
+                  {icons.trash}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        <Button type="button" variant="secondary" onClick={addItem}>
+          Añadir Ítem
+        </Button>
+
+        {/* Totales */}
+        <div className="mt-4 border-t pt-4 space-y-2 text-right">
+          <p>
+            Subtotal: <b>${new Intl.NumberFormat("es-CO").format(subtotal)}</b>
+          </p>
+          <p>
+            IVA: <b>${new Intl.NumberFormat("es-CO").format(iva)}</b>
+          </p>
+          <p>
+            Retenciones:{" "}
+            <b>-${new Intl.NumberFormat("es-CO").format(retenciones)}</b>
+          </p>
+          <p className="text-lg font-bold">
+            Total Neto: ${new Intl.NumberFormat("es-CO").format(totalNeto)}
+          </p>
+        </div>
+
+        {/* Forma de pago y observaciones */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 border-t pt-4">
           <Select
             label="Forma de Pago"
