@@ -1534,19 +1534,26 @@ const PurchaseModule = ({ setActiveView }) => {
     );
 
     const unsubSuppliers = onSnapshot(suppliersQuery, (snapshot) => {
-      setSuppliers(
-        snapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((s) => Array.isArray(s.type) && s.type.includes("proveedor"))
+      const allThirdparties = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      // ✅ Filtrar solo los que sean proveedores
+      const onlySuppliers = allThirdparties.filter(
+        (t) =>
+          (Array.isArray(t.type) && t.type.includes("proveedor")) ||
+          t.type === "proveedor" ||
+          t.type === "Proveedor"
       );
+      setSuppliers(onlySuppliers);
     });
+
     const unsubProducts = onSnapshot(productsQuery, (snapshot) => {
       setProducts(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
+
     const unsubRetenciones = onSnapshot(retencionesQuery, (snapshot) => {
-      setRetenciones(
-        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      );
+      setRetenciones(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
 
     return () => {
@@ -1722,9 +1729,7 @@ const PurchaseModule = ({ setActiveView }) => {
             Documentos de compra
           </button>
           <button className="pb-2 hover:text-blue-600">Proveedores</button>
-          <button className="pb-2 hover:text-blue-600">
-            Órdenes de compra
-          </button>
+          <button className="pb-2 hover:text-blue-600">Órdenes de compra</button>
         </nav>
       </div>
 
@@ -3197,6 +3202,7 @@ const InvoiceFormModal = ({
     </Modal>
   );
 };
+// Modal Crear Compra
 const PurchaseFormModal = ({
   isOpen,
   onClose,
@@ -3208,6 +3214,7 @@ const PurchaseFormModal = ({
 }) => {
   const { userData } = useApp();
 
+  const [tipoFactura, setTipoFactura] = useState("FC-1-Compra");
   const [supplierId, setSupplierId] = useState("");
   const [date, setDate] = useState(() => {
     const today = new Date();
@@ -3267,6 +3274,7 @@ const PurchaseFormModal = ({
 
   useEffect(() => {
     if (initialData) {
+      setTipoFactura(initialData.tipoFactura || "FC-1-Compra");
       setSupplierId(initialData.supplierId || "");
       setDate(
         initialData.date
@@ -3369,6 +3377,7 @@ const PurchaseFormModal = ({
 
     const invoiceData = {
       id: initialData?.id || null,
+      tipoFactura,
       supplierId,
       supplierInvoice: `${supplierPrefix}-${supplierConsecutive}`,
       comprador: userData?.name || "Usuario",
@@ -3403,22 +3412,38 @@ const PurchaseFormModal = ({
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {!initialData && lastInvoiceNumber && (
+        {/* Última y siguiente sugerida */}
+        {!initialData && (
           <div className="p-2 bg-gray-100 rounded text-sm text-gray-700 space-y-1">
-            <p>
-              Última factura registrada: <b>{lastInvoiceNumber}</b>
-            </p>
-            {getNextInvoiceNumber(lastInvoiceNumber) && (
-              <p>
-                Siguiente sugerida:{" "}
-                <b>{getNextInvoiceNumber(lastInvoiceNumber)}</b>
-              </p>
+            {lastInvoiceNumber ? (
+              <>
+                <p>
+                  Última factura registrada: <b>{lastInvoiceNumber}</b>
+                </p>
+                {getNextInvoiceNumber(lastInvoiceNumber) && (
+                  <p>
+                    Siguiente sugerida:{" "}
+                    <b>{getNextInvoiceNumber(lastInvoiceNumber)}</b>
+                  </p>
+                )}
+              </>
+            ) : (
+              <p>No hay facturas registradas aún. Sugerida: <b>FC-001</b></p>
             )}
           </div>
         )}
 
         {/* Encabezado */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Select
+            label="Tipo de Factura"
+            value={tipoFactura}
+            onChange={(e) => setTipoFactura(e.target.value)}
+            required
+          >
+            <option value="FC-1-Compra">FC-1-Compra</option>
+          </Select>
+
           <Select
             label="Proveedor"
             value={supplierId}
@@ -3432,12 +3457,14 @@ const PurchaseFormModal = ({
               </option>
             ))}
           </Select>
+
           <Input
             label="Fecha de Elaboración"
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />
+
           <div className="flex items-end space-x-2">
             <Input
               label="Nº Factura Proveedor (Prefijo)"
@@ -3450,6 +3477,7 @@ const PurchaseFormModal = ({
               onChange={(e) => setSupplierConsecutive(e.target.value)}
             />
           </div>
+
           <Input label="Comprador" value={userData?.name || ""} readOnly />
         </div>
 
