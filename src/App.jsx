@@ -1277,7 +1277,6 @@ const SalesModule = ({ setActiveView }) => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          
         </div>
         <div className="flex space-x-2">
           <Button
@@ -1408,90 +1407,18 @@ const SalesModule = ({ setActiveView }) => {
         lastInvoiceNumber={lastInvoiceNumber}
       />
 
-      {/* Modal Detalle Factura */}
+      {/* Modal Detalle Factura (refactorizado) */}
       {isDetailOpen && selectedInvoice && (
-        <Modal
+        <InvoiceDetailModal
           isOpen={isDetailOpen}
           onClose={() => {
             setIsDetailOpen(false);
             setSelectedInvoice(null);
           }}
-          title="Detalle de Factura"
-        >
-          <div className="space-y-3 text-sm">
-            <p>
-              <b>Número:</b> {selectedInvoice.invoiceNumber}
-            </p>
-            <p>
-              <b>Cliente:</b>{" "}
-              {clients.find((c) => c.id === selectedInvoice.clientId)?.name ||
-                "N/A"}
-            </p>
-            <p>
-              <b>Fecha:</b>{" "}
-              {selectedInvoice.date?.seconds
-                ? new Date(
-                    selectedInvoice.date.seconds * 1000
-                  ).toLocaleDateString()
-                : "N/A"}
-            </p>
-
-            <table className="w-full border text-xs">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th>Producto</th>
-                  <th>Cant.</th>
-                  <th>Precio</th>
-                  <th>Desc.</th>
-                  <th>IVA</th>
-                  <th>Ret.</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedInvoice.items.map((item, i) => {
-                  const qty = item.quantity;
-                  const base = item.price * qty * (1 - item.discount / 100);
-                  const iva = base * ((item.tax || 0) / 100);
-                  const ret = base * ((item.retention || 0) / 100);
-                  const total = base + iva - ret;
-                  return (
-                    <tr key={i}>
-                      <td>{item.name}</td>
-                      <td>{qty}</td>
-                      <td>${item.price}</td>
-                      <td>{item.discount}%</td>
-                      <td>{item.tax}%</td>
-                      <td>{item.retention}%</td>
-                      <td>${total.toFixed(2)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            <div className="text-right space-y-1">
-              <p>Subtotal: ${selectedInvoice.subtotal?.toFixed(2)}</p>
-              <p>IVA: ${selectedInvoice.iva?.toFixed(2)}</p>
-              <p>Retenciones: -${selectedInvoice.retenciones?.toFixed(2)}</p>
-              <p className="text-lg font-bold">
-                Total Neto: ${selectedInvoice.total?.toFixed(2)}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <Button variant="secondary" onClick={() => setIsDetailOpen(false)}>
-              Cerrar
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => generateInvoicePDF(selectedInvoice)}
-            >
-              Descargar PDF
-            </Button>
-          </div>
-        </Modal>
+          invoice={selectedInvoice}
+          entityName="Cliente"
+          onDownloadPDF={generateInvoicePDF}
+        />
       )}
     </div>
   );
@@ -1901,17 +1828,18 @@ const PurchaseModule = ({ setActiveView }) => {
         lastInvoiceNumber={lastInvoiceNumber}
       />
 
-      {/* Modal Detalle Factura */}
+      {/* Modal Detalle Factura (refactorizado) */}
       {isDetailOpen && selectedInvoice && (
-        <Modal
+        <InvoiceDetailModal
           isOpen={isDetailOpen}
           onClose={() => {
             setIsDetailOpen(false);
             setSelectedInvoice(null);
           }}
-          title="Detalle de Factura de Compra"
-        >
-        </Modal>
+          invoice={selectedInvoice}
+          entityName="Proveedor"
+          onDownloadPDF={generateInvoicePDF}
+        />
       )}
     </div>
   );
@@ -3601,12 +3529,21 @@ const PurchaseFormModal = ({
   );
 };
 // Modal Detalle de Factura
-const InvoiceDetailModal = ({ isOpen, onClose, invoice, entityName = "Cliente" }) => {
-  if (!invoice) return null;
+const InvoiceDetailModal = ({
+  isOpen,
+  onClose,
+  invoice,
+  entityName = "Cliente",
+  onDownloadPDF, // <- función que se le pasará desde cada módulo
+}) => {
+  if (!isOpen || !invoice) return null;
 
   const handleDownloadPDF = () => {
-    // 🔹 Generar PDF con jsPDF (frontend) o reportlab (backend)
-    generateInvoicePDF(invoice);
+    if (typeof onDownloadPDF === "function") {
+      onDownloadPDF(invoice);
+    } else {
+      console.warn("InvoiceDetailModal: onDownloadPDF no está definido.");
+    }
   };
 
   return (
@@ -3649,7 +3586,7 @@ const InvoiceDetailModal = ({ isOpen, onClose, invoice, entityName = "Cliente" }
           <tbody>
             {invoice.items.map((item, i) => {
               const qty = item.quantity;
-              const base = item.price * qty * (1 - item.discount / 100);
+              const base = item.price * qty * (1 - (item.discount || 0) / 100);
               const iva = base * ((item.tax || 0) / 100);
               const ret = base * ((item.retention || 0) / 100);
               const total = base + iva - ret;
@@ -3658,9 +3595,9 @@ const InvoiceDetailModal = ({ isOpen, onClose, invoice, entityName = "Cliente" }
                   <td>{item.name}</td>
                   <td>{qty}</td>
                   <td>${item.price}</td>
-                  <td>{item.discount}%</td>
-                  <td>{item.tax}%</td>
-                  <td>{item.retention}%</td>
+                  <td>{item.discount ?? 0}%</td>
+                  <td>{item.tax ?? 0}%</td>
+                  <td>{item.retention ?? 0}%</td>
                   <td>${total.toFixed(2)}</td>
                 </tr>
               );
@@ -3679,6 +3616,7 @@ const InvoiceDetailModal = ({ isOpen, onClose, invoice, entityName = "Cliente" }
         </div>
       </div>
 
+      {/* Botones */}
       <div className="flex justify-end space-x-3 pt-4">
         <Button variant="secondary" onClick={onClose}>
           Cerrar
