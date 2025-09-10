@@ -1603,16 +1603,140 @@ const PurchaseModule = ({ setActiveView }) => {
   }, [companyData]);
 
   // --- Crear factura de compra ---
-  const handleCreateInvoice = async (invoiceData) => { /* igual */ };
+  const handleCreateInvoice = async (invoiceData) => {
+    if (!companyData) return;
+    const toastId = toast.loading("Creando factura de compra...");
+    try {
+      const counterRef = doc(
+        db,
+        `companies/${companyData.id}/counters/invoices_purchases`
+      );
+      await setDoc(counterRef, { lastNumber: increment(1) }, { merge: true });
+
+      const counterSnap = await getDoc(counterRef);
+      const nextNumber = counterSnap.exists()
+        ? counterSnap.data().lastNumber
+        : 1;
+      const invoiceNumber = `FC-${String(nextNumber).padStart(3, "0")}`;
+
+      const invoicesRef = collection(
+        db,
+        `companies/${companyData.id}/invoices_purchases`
+      );
+      const newInvoiceRef = await addDoc(invoicesRef, {
+        ...invoiceData,
+        companyId: companyData.id,
+        invoiceNumber,
+        createdAt: serverTimestamp(),
+        status: "Pendiente",
+      });
+
+      await updateDoc(newInvoiceRef, { id: newInvoiceRef.id });
+
+      setIsModalOpen(false);
+      toast.success("✅ Factura de compra creada con éxito", { id: toastId });
+    } catch (error) {
+      console.error("Error creating purchase invoice: ", error);
+      toast.error("❌ Error al crear la factura de compra", { id: toastId });
+    }
+  };
 
   // --- Editar factura ---
-  const handleUpdateInvoice = async (invoiceData) => { /* igual */ };
+  const handleUpdateInvoice = async (invoiceData) => {
+    if (!companyData || !editingInvoice) return;
+    const toastId = toast.loading("Actualizando factura de compra...");
+    try {
+      const invoiceRef = doc(
+        db,
+        `companies/${companyData.id}/invoices_purchases/${editingInvoice.id}`
+      );
+      await updateDoc(invoiceRef, {
+        ...invoiceData,
+        updatedAt: serverTimestamp(),
+      });
+      setEditingInvoice(null);
+      setIsModalOpen(false);
+      toast.success("✅ Factura de compra actualizada correctamente", {
+        id: toastId,
+      });
+    } catch (error) {
+      console.error("Error updating purchase invoice: ", error);
+      toast.error("❌ Error al actualizar la factura de compra", {
+        id: toastId,
+      });
+    }
+  };
 
   // --- Eliminar factura ---
-  const handleDeleteInvoice = async (id) => { /* igual */ };
+  const handleDeleteInvoice = async (id) => {
+    if (!companyData) return;
+    if (!window.confirm("¿Seguro que deseas eliminar esta factura de compra?"))
+      return;
+    const toastId = toast.loading("Eliminando factura de compra...");
+    try {
+      const path = `companies/${companyData.id}/invoices_purchases/${id}`;
+      await deleteDoc(doc(db, path));
+      toast.success("✅ Factura eliminada correctamente", { id: toastId });
+    } catch (error) {
+      console.error("❌ Error deleting purchase invoice: ", error);
+      toast.error("❌ Error eliminando factura", { id: toastId });
+    }
+  };
 
   // --- Descargar PDF ---
-  const generateInvoicePDF = (invoice) => { /* igual */ };
+  const generateInvoicePDF = (invoice) => {
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.text("Factura de Compra", 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Número: ${invoice.invoiceNumber}`, 14, 28);
+    doc.text(
+      `Proveedor: ${
+        suppliers.find((s) => s.id === invoice.supplierId)?.name || "N/A"
+      }`,
+      14,
+      34
+    );
+
+    // Items
+    const rows = invoice.items.map((item) => [
+      item.name,
+      item.quantity,
+      `$${item.price}`,
+      `${item.discount}%`,
+      `${item.tax}%`,
+      `${item.retention}%`,
+      `$${(item.price * item.quantity).toFixed(2)}`,
+    ]);
+
+    doc.autoTable({
+      head: [["Producto", "Cant.", "Precio", "Desc.", "IVA", "Ret.", "Total"]],
+      body: rows,
+      startY: 40,
+    });
+
+    // Totales
+    doc.text(
+      `Subtotal: $${invoice.subtotal}`,
+      14,
+      doc.lastAutoTable.finalY + 10
+    );
+    doc.text(`IVA: $${invoice.iva}`, 14, doc.lastAutoTable.finalY + 16);
+    doc.text(
+      `Retenciones: -$${invoice.retenciones}`,
+      14,
+      doc.lastAutoTable.finalY + 22
+    );
+    doc.setFontSize(12);
+    doc.text(
+      `Total Neto: $${invoice.total}`,
+      14,
+      doc.lastAutoTable.finalY + 32
+    );
+
+    doc.save(`FacturaCompra_${invoice.invoiceNumber}.pdf`);
+  };
 
   // ✅ Filtrado de facturas por búsqueda
   const filteredInvoices = invoices.filter((invoice) => {
@@ -1647,7 +1771,6 @@ const PurchaseModule = ({ setActiveView }) => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          
         </div>
         <div className="flex space-x-2">
           <Button
@@ -1788,7 +1911,6 @@ const PurchaseModule = ({ setActiveView }) => {
           }}
           title="Detalle de Factura de Compra"
         >
-          {/* igual que tu código */}
         </Modal>
       )}
     </div>
@@ -3479,11 +3601,11 @@ const PurchaseFormModal = ({
   );
 };
 // Modal Detalle de Factura
-const InvoiceDetailModal = ({ isOpen, onClose, invoice }) => {
+const InvoiceDetailModal = ({ isOpen, onClose, invoice, entityName = "Cliente" }) => {
   if (!invoice) return null;
 
   const handleDownloadPDF = () => {
-    // 🔹 aquí generamos PDF con reportlab (backend) o jsPDF (frontend)
+    // 🔹 Generar PDF con jsPDF (frontend) o reportlab (backend)
     generateInvoicePDF(invoice);
   };
 
@@ -3500,11 +3622,16 @@ const InvoiceDetailModal = ({ isOpen, onClose, invoice }) => {
             : "N/A"}
         </p>
         <p>
-          <b>Cliente:</b> {invoice.clientName || invoice.clientId}
+          <b>{entityName}:</b>{" "}
+          {entityName === "Cliente"
+            ? invoice.clientName || invoice.clientId
+            : invoice.supplierName || invoice.supplierId}
         </p>
-        <p>
-          <b>Vendedor:</b> {invoice.vendedor}
-        </p>
+        {invoice.vendedor && (
+          <p>
+            <b>Vendedor:</b> {invoice.vendedor}
+          </p>
+        )}
 
         {/* Items */}
         <table className="w-full border text-xs">
