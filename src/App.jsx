@@ -361,8 +361,82 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 setLogLevel("debug");
 
+// --- Inicializar Analytics ---
+import { getAnalytics, logEvent } from "firebase/analytics";
+
+let analytics;
+if (typeof window !== "undefined") {
+  analytics = getAnalytics(app);
+
+  // Ejemplo: log de arranque
+  logEvent(analytics, "app_start", {
+    app: "ERP Contable",
+    time: new Date().toISOString(),
+  });
+}
+
 // --- Contexto de Autenticación y Datos ---
 const AppContext = createContext();
+// Función para generar PDF de factura
+const generateInvoicePDF = (
+  invoice,
+  title = "Factura",
+  entityName = "Cliente"
+) => {
+  const doc = new jsPDF();
+
+  // Encabezado
+  doc.setFontSize(16);
+  doc.text(title, 14, 20);
+  doc.setFontSize(10);
+  doc.text(`Número: ${invoice.invoiceNumber || "SINID"}`, 14, 28);
+
+  if (entityName === "Cliente") {
+    doc.text(
+      `Cliente: ${invoice.clientName || invoice.clientId || "N/A"}`,
+      14,
+      34
+    );
+  } else {
+    doc.text(
+      `Proveedor: ${invoice.supplierName || invoice.supplierId || "N/A"}`,
+      14,
+      34
+    );
+  }
+
+  // Items de la factura
+  const rows = (invoice.items || []).map((item) => [
+    item.name || "—",
+    item.quantity || 0,
+    `$${item.price || 0}`,
+    `${item.discount ?? 0}%`,
+    `${item.tax ?? 0}%`,
+    `${item.retention ?? 0}%`,
+    `$${((item.price || 0) * (item.quantity || 0)).toFixed(2)}`,
+  ]);
+
+  if (rows.length > 0) {
+    doc.autoTable({
+      head: [["Producto", "Cant.", "Precio", "Desc.", "IVA", "Ret.", "Total"]],
+      body: rows,
+      startY: 40,
+    });
+  }
+
+  // Posición final después de la tabla
+  const finalY = (doc.lastAutoTable && doc.lastAutoTable.finalY) || 40;
+
+  // Totales
+  doc.text(`Subtotal: $${invoice.subtotal || 0}`, 14, finalY + 10);
+  doc.text(`IVA: $${invoice.iva || 0}`, 14, finalY + 16);
+  doc.text(`Retenciones: -$${invoice.retenciones || 0}`, 14, finalY + 22);
+  doc.setFontSize(12);
+  doc.text(`Total Neto: $${invoice.total || 0}`, 14, finalY + 32);
+
+  // Guardar archivo
+  doc.save(`${title}_${invoice.invoiceNumber || "SINID"}.pdf`);
+};
 // -- Autenticaciòn y Configuración Inicial ---
 const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -1030,13 +1104,28 @@ const SalesModule = ({ setActiveView }) => {
   // ✅ Nuevo estado para búsqueda
   const [searchTerm, setSearchTerm] = useState("");
 
+  // --- Helper para formatear fecha ---
+  const formatInvoiceDate = (d) => {
+    if (!d) return "N/A";
+    if (d.seconds)
+      return new Date(d.seconds * 1000).toLocaleDateString("es-CO", {
+        timeZone: "America/Bogota",
+      });
+    if (typeof d.toDate === "function")
+      return d.toDate().toLocaleDateString("es-CO", {
+        timeZone: "America/Bogota",
+      });
+    if (d instanceof Date)
+      return d.toLocaleDateString("es-CO", { timeZone: "America/Bogota" });
+    if (typeof d === "string") return d;
+    return String(d);
+  };
+
   // --- Obtener facturas ---
   useEffect(() => {
     if (!companyData) return;
     setLoading(true);
-    const q = query(
-      collection(db, `companies/${companyData.id}/invoices_sales`)
-    );
+    const q = query(collection(db, `companies/${companyData.id}/invoices_sales`));
     const unsubscribe = onSnapshot(
       q,
       (querySnapshot) => {
@@ -1058,15 +1147,9 @@ const SalesModule = ({ setActiveView }) => {
   // --- Obtener clientes, productos y retenciones ---
   useEffect(() => {
     if (!companyData) return;
-    const clientsQuery = query(
-      collection(db, `companies/${companyData.id}/thirdparties`)
-    );
-    const productsQuery = query(
-      collection(db, `companies/${companyData.id}/products`)
-    );
-    const retencionesQuery = query(
-      collection(db, `companies/${companyData.id}/retenciones`)
-    );
+    const clientsQuery = query(collection(db, `companies/${companyData.id}/thirdparties`));
+    const productsQuery = query(collection(db, `companies/${companyData.id}/products`));
+    const retencionesQuery = query(collection(db, `companies/${companyData.id}/retenciones`));
 
     const unsubClients = onSnapshot(clientsQuery, (snapshot) => {
       setClients(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
@@ -1075,9 +1158,7 @@ const SalesModule = ({ setActiveView }) => {
       setProducts(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
     const unsubRetenciones = onSnapshot(retencionesQuery, (snapshot) => {
-      setRetenciones(
-        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      );
+      setRetenciones(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
 
     return () => {
@@ -1113,24 +1194,35 @@ const SalesModule = ({ setActiveView }) => {
     if (!companyData) return;
     const toastId = toast.loading("Creando factura...");
     try {
-      const counterRef = doc(
-        db,
-        `companies/${companyData.id}/counters/invoices_sales`
-      );
+      const counterRef = doc(db, `companies/${companyData.id}/counters/invoices_sales`);
       await setDoc(counterRef, { lastNumber: increment(1) }, { merge: true });
 
       const counterSnap = await getDoc(counterRef);
-      const nextNumber = counterSnap.exists()
-        ? counterSnap.data().lastNumber
-        : 1;
+      const nextNumber = counterSnap.exists() ? counterSnap.data().lastNumber : 1;
       const invoiceNumber = `FV-${String(nextNumber).padStart(3, "0")}`;
 
-      const invoicesRef = collection(
-        db,
-        `companies/${companyData.id}/invoices_sales`
-      );
+      // Normalizar fecha seleccionada
+      let dateToSave = null;
+      if (invoiceData?.date) {
+        if (typeof invoiceData.date === "string") {
+          const [y, m, d] = invoiceData.date.split("-");
+          dateToSave = new Date(Number(y), Number(m) - 1, Number(d));
+        } else if (invoiceData instanceof Date) {
+          dateToSave = new Date(
+            invoiceData.getFullYear(),
+            invoiceData.getMonth(),
+            invoiceData.getDate()
+          );
+        } else if (invoiceData.date.seconds) {
+          dateToSave = new Date(invoiceData.date.seconds * 1000);
+        }
+      }
+
+      const invoicesRef = collection(db, `companies/${companyData.id}/invoices_sales`);
       const newInvoiceRef = await addDoc(invoicesRef, {
         ...invoiceData,
+        // ✅ siempre habrá fecha: la seleccionada o la actual
+        date: dateToSave || new Date(),
         companyId: companyData.id,
         invoiceNumber,
         createdAt: serverTimestamp(),
@@ -1156,10 +1248,32 @@ const SalesModule = ({ setActiveView }) => {
         db,
         `companies/${companyData.id}/invoices_sales/${editingInvoice.id}`
       );
-      await updateDoc(invoiceRef, {
+
+      // Normalizar fecha seleccionada
+      let dateToSave = undefined;
+      if (invoiceData?.date) {
+        if (typeof invoiceData.date === "string") {
+          const [y, m, d] = invoiceData.date.split("-");
+          dateToSave = new Date(Number(y), Number(m) - 1, Number(d));
+        } else if (invoiceData instanceof Date) {
+          dateToSave = new Date(
+            invoiceData.getFullYear(),
+            invoiceData.getMonth(),
+            invoiceData.getDate()
+          );
+        } else if (invoiceData.date.seconds) {
+          dateToSave = new Date(invoiceData.date.seconds * 1000);
+        }
+      }
+
+      const payload = {
         ...invoiceData,
         updatedAt: serverTimestamp(),
-      });
+      };
+      if (dateToSave) payload.date = dateToSave;
+
+      await updateDoc(invoiceRef, payload);
+
       setEditingInvoice(null);
       setIsModalOpen(false);
       toast.success("✅ Factura actualizada correctamente", { id: toastId });
@@ -1184,61 +1298,6 @@ const SalesModule = ({ setActiveView }) => {
     }
   };
 
-  // --- Descargar PDF ---
-  const generateInvoicePDF = (invoice) => {
-    const doc = new jsPDF();
-
-    doc.setFontSize(16);
-    doc.text("Factura de Venta", 14, 20);
-    doc.setFontSize(10);
-    doc.text(`Número: ${invoice.invoiceNumber}`, 14, 28);
-    doc.text(
-      `Cliente: ${
-        clients.find((c) => c.id === invoice.clientId)?.name || "N/A"
-      }`,
-      14,
-      34
-    );
-
-    // Items
-    const rows = invoice.items.map((item) => [
-      item.name,
-      item.quantity,
-      `$${item.price}`,
-      `${item.discount}%`,
-      `${item.tax}%`,
-      `${item.retention}%`,
-      `$${(item.price * item.quantity).toFixed(2)}`,
-    ]);
-
-    doc.autoTable({
-      head: [["Producto", "Cant.", "Precio", "Desc.", "IVA", "Ret.", "Total"]],
-      body: rows,
-      startY: 40,
-    });
-
-    // Totales
-    doc.text(
-      `Subtotal: $${invoice.subtotal}`,
-      14,
-      doc.lastAutoTable.finalY + 10
-    );
-    doc.text(`IVA: $${invoice.iva}`, 14, doc.lastAutoTable.finalY + 16);
-    doc.text(
-      `Retenciones: -$${invoice.retenciones}`,
-      14,
-      doc.lastAutoTable.finalY + 22
-    );
-    doc.setFontSize(12);
-    doc.text(
-      `Total Neto: $${invoice.total}`,
-      14,
-      doc.lastAutoTable.finalY + 32
-    );
-
-    doc.save(`Factura_${invoice.invoiceNumber}.pdf`);
-  };
-
   // ✅ Filtrado de facturas por búsqueda
   const filteredInvoices = invoices.filter((invoice) => {
     const client = clients.find((c) => c.id === invoice.clientId);
@@ -1257,13 +1316,9 @@ const SalesModule = ({ setActiveView }) => {
           <button className="border-b-2 border-blue-600 text-blue-600 pb-2">
             Documentos de venta
           </button>
-          <button className="pb-2 hover:text-blue-600">
-            Facturas recurrentes
-          </button>
+          <button className="pb-2 hover:text-blue-600">Facturas recurrentes</button>
           <button className="pb-2 hover:text-blue-600">Clientes</button>
-          <button className="pb-2 hover:text-blue-600">
-            Seguimiento comercial
-          </button>
+          <button className="pb-2 hover:text-blue-600">Seguimiento comercial</button>
         </nav>
       </div>
 
@@ -1317,27 +1372,16 @@ const SalesModule = ({ setActiveView }) => {
             </thead>
             <tbody>
               {filteredInvoices.map((invoice) => (
-                <tr
-                  key={invoice.id}
-                  className="bg-white border-b hover:bg-gray-50"
-                >
-                  <td className="px-6 py-4">
-                    {invoice.date?.seconds
-                      ? new Date(
-                          invoice.date.seconds * 1000
-                        ).toLocaleDateString()
-                      : "N/A"}
-                  </td>
+                <tr key={invoice.id} className="bg-white border-b hover:bg-gray-50">
+                  <td className="px-6 py-4">{formatInvoiceDate(invoice.date)}</td>
                   <td className="px-6 py-4 font-medium text-blue-600">
                     {invoice.invoiceNumber || "FV-SINID"}
                   </td>
                   <td className="px-6 py-4">
-                    {clients.find((c) => c.id === invoice.clientId)?.idNumber ||
-                      "N/A"}
+                    {clients.find((c) => c.id === invoice.clientId)?.idNumber || "N/A"}
                   </td>
                   <td className="px-6 py-4">
-                    {clients.find((c) => c.id === invoice.clientId)?.name ||
-                      "Consumidor Final"}
+                    {clients.find((c) => c.id === invoice.clientId)?.name || "Consumidor Final"}
                   </td>
                   <td className="px-6 py-4">
                     ${new Intl.NumberFormat("es-CO").format(invoice.total || 0)}
@@ -1407,7 +1451,7 @@ const SalesModule = ({ setActiveView }) => {
         lastInvoiceNumber={lastInvoiceNumber}
       />
 
-      {/* Modal Detalle Factura (refactorizado) */}
+      {/* Modal Detalle Factura */}
       {isDetailOpen && selectedInvoice && (
         <InvoiceDetailModal
           isOpen={isDetailOpen}
@@ -1417,7 +1461,9 @@ const SalesModule = ({ setActiveView }) => {
           }}
           invoice={selectedInvoice}
           entityName="Cliente"
-          onDownloadPDF={generateInvoicePDF}
+          onDownloadPDF={(invoice) =>
+            generateInvoicePDF(invoice, "Factura de Venta", "Cliente")
+          }
         />
       )}
     </div>
@@ -1610,61 +1656,6 @@ const PurchaseModule = ({ setActiveView }) => {
     }
   };
 
-  // --- Descargar PDF ---
-  const generateInvoicePDF = (invoice) => {
-    const doc = new jsPDF();
-
-    doc.setFontSize(16);
-    doc.text("Factura de Compra", 14, 20);
-    doc.setFontSize(10);
-    doc.text(`Número: ${invoice.invoiceNumber}`, 14, 28);
-    doc.text(
-      `Proveedor: ${
-        suppliers.find((s) => s.id === invoice.supplierId)?.name || "N/A"
-      }`,
-      14,
-      34
-    );
-
-    // Items
-    const rows = invoice.items.map((item) => [
-      item.name,
-      item.quantity,
-      `$${item.price}`,
-      `${item.discount}%`,
-      `${item.tax}%`,
-      `${item.retention}%`,
-      `$${(item.price * item.quantity).toFixed(2)}`,
-    ]);
-
-    doc.autoTable({
-      head: [["Producto", "Cant.", "Precio", "Desc.", "IVA", "Ret.", "Total"]],
-      body: rows,
-      startY: 40,
-    });
-
-    // Totales
-    doc.text(
-      `Subtotal: $${invoice.subtotal}`,
-      14,
-      doc.lastAutoTable.finalY + 10
-    );
-    doc.text(`IVA: $${invoice.iva}`, 14, doc.lastAutoTable.finalY + 16);
-    doc.text(
-      `Retenciones: -$${invoice.retenciones}`,
-      14,
-      doc.lastAutoTable.finalY + 22
-    );
-    doc.setFontSize(12);
-    doc.text(
-      `Total Neto: $${invoice.total}`,
-      14,
-      doc.lastAutoTable.finalY + 32
-    );
-
-    doc.save(`FacturaCompra_${invoice.invoiceNumber}.pdf`);
-  };
-
   // ✅ Filtrado de facturas por búsqueda
   const filteredInvoices = invoices.filter((invoice) => {
     const supplier = suppliers.find((s) => s.id === invoice.supplierId);
@@ -1838,7 +1829,7 @@ const PurchaseModule = ({ setActiveView }) => {
           }}
           invoice={selectedInvoice}
           entityName="Proveedor"
-          onDownloadPDF={generateInvoicePDF}
+          onDownloadPDF={(invoice) => generateInvoicePDF(invoice, "Factura de Compra", "Proveedor")}
         />
       )}
     </div>
@@ -2677,6 +2668,9 @@ const ProductsServicesModule = () => {
     </div>
   );
 };
+
+//================= MODALES ==============================//
+
 // Modal Crear Factura
 const InvoiceFormModal = ({
   isOpen,
@@ -2706,7 +2700,7 @@ const InvoiceFormModal = ({
       price: 0,
       discount: 0,
       tax: "",
-      retention: "", // ahora se selecciona desde un <Select>
+      retention: "",
     },
   ]);
   const [paymentMethod, setPaymentMethod] = useState("Efectivo");
@@ -2751,7 +2745,11 @@ const InvoiceFormModal = ({
       setClientId(initialData.clientId || "");
       setDate(
         initialData.date
-          ? new Date(initialData.date.seconds * 1000)
+          ? new Date(
+              initialData.date.seconds
+                ? initialData.date.seconds * 1000
+                : initialData.date
+            )
               .toISOString()
               .split("T")[0]
           : date
@@ -2841,19 +2839,33 @@ const InvoiceFormModal = ({
       ? getNextInvoiceNumber(lastInvoiceNumber)
       : initialData.invoiceNumber;
 
+    // ✅ Normalizar fecha: si no hay, se usa hoy
+    let dateToSave;
+    if (date) {
+      const [y, m, d] = date.split("-");
+      dateToSave = new Date(Number(y), Number(m) - 1, Number(d));
+    } else {
+      const today = new Date();
+      dateToSave = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate()
+      );
+    }
+
     const invoiceData = {
       id: initialData?.id || null,
       tipoFactura,
       clientId,
       vendedor: userData?.name || "Usuario",
-      date: new Date(date),
+      date: dateToSave,
       items: items.map((i) => ({
         ...i,
         quantity: Number(i.quantity),
         price: Number(i.price),
         discount: Number(i.discount),
         tax: i.tax === "" ? null : Number(i.tax),
-        retention: i.retention === "" ? null : Number(i.retention), // guardamos el %
+        retention: i.retention === "" ? null : Number(i.retention), // guardamos %
       })),
       paymentMethod,
       observaciones,
@@ -3555,7 +3567,9 @@ const InvoiceDetailModal = ({
         <p>
           <b>Fecha:</b>{" "}
           {invoice.date?.seconds
-            ? new Date(invoice.date.seconds * 1000).toLocaleDateString()
+            ? new Date(invoice.date.seconds * 1000).toLocaleDateString("es-CO", {
+        timeZone: "America/Bogota",
+      })
             : "N/A"}
         </p>
         <p>
