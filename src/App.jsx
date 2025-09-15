@@ -2718,7 +2718,7 @@ const InvoiceFormModal = ({
 }) => {
   const { userData } = useApp();
 
-  const [tipoFactura, setTipoFactura] = useState("Electrónica");
+  const [tipoFactura, setTipoFactura] = useState("Física");
   const [clientId, setClientId] = useState("");
   const [date, setDate] = useState(() => {
     const today = new Date();
