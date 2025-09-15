@@ -1486,6 +1486,39 @@ const PurchaseModule = ({ setActiveView }) => {
   // ✅ Nuevo estado para búsqueda
   const [searchTerm, setSearchTerm] = useState("");
 
+  // --- Función para formatear fecha ---
+  const formatInvoiceDate = (timestamp) => {
+    if (!timestamp) return "N/A";
+    const date = new Date(timestamp.seconds * 1000);
+    return date.toLocaleDateString("es-CO", {
+      timeZone: "America/Bogota",
+    });
+  };
+
+  // --- Normalizar fecha ---
+  const normalizeDate = (dateInput) => {
+    if (!dateInput) return null;
+
+    if (typeof dateInput === "string") {
+      const [y, m, d] = dateInput.split("-");
+      return new Date(Number(y), Number(m) - 1, Number(d));
+    }
+
+    if (dateInput instanceof Date) {
+      return new Date(
+        dateInput.getFullYear(),
+        dateInput.getMonth(),
+        dateInput.getDate()
+      );
+    }
+
+    if (dateInput?.seconds) {
+      return new Date(dateInput.seconds * 1000);
+    }
+
+    return null;
+  };
+
   // --- Obtener facturas de compra ---
   useEffect(() => {
     if (!companyData) return;
@@ -1598,6 +1631,7 @@ const PurchaseModule = ({ setActiveView }) => {
       );
       const newInvoiceRef = await addDoc(invoicesRef, {
         ...invoiceData,
+        date: normalizeDate(invoiceData.date), // 👈 corregido
         companyId: companyData.id,
         invoiceNumber,
         createdAt: serverTimestamp(),
@@ -1625,6 +1659,7 @@ const PurchaseModule = ({ setActiveView }) => {
       );
       await updateDoc(invoiceRef, {
         ...invoiceData,
+        date: normalizeDate(invoiceData.date), // 👈 corregido
         updatedAt: serverTimestamp(),
       });
       setEditingInvoice(null);
@@ -1735,9 +1770,7 @@ const PurchaseModule = ({ setActiveView }) => {
                 >
                   <td className="px-6 py-4">
                     {invoice.date?.seconds
-                      ? new Date(
-                          invoice.date.seconds * 1000
-                        ).toLocaleDateString()
+                      ? formatInvoiceDate(invoice.date)
                       : "N/A"}
                   </td>
                   <td className="px-6 py-4 font-medium text-blue-600">
@@ -1829,7 +1862,9 @@ const PurchaseModule = ({ setActiveView }) => {
           }}
           invoice={selectedInvoice}
           entityName="Proveedor"
-          onDownloadPDF={(invoice) => generateInvoicePDF(invoice, "Factura de Compra", "Proveedor")}
+          onDownloadPDF={(invoice) =>
+            generateInvoicePDF(invoice, "Factura de Compra", "Proveedor")
+          }
         />
       )}
     </div>
@@ -3114,9 +3149,7 @@ const PurchaseFormModal = ({
   const [supplierId, setSupplierId] = useState("");
   const [date, setDate] = useState(() => {
     const today = new Date();
-    return new Date(today.getTime() - today.getTimezoneOffset() * 60000)
-      .toISOString()
-      .split("T")[0];
+    return today.toISOString().split("T")[0]; // ✅ corregido, sin timezoneOffset
   });
   const [supplierPrefix, setSupplierPrefix] = useState("FC");
   const [supplierConsecutive, setSupplierConsecutive] = useState("");
@@ -3277,7 +3310,7 @@ const PurchaseFormModal = ({
       supplierId,
       supplierInvoice: `${supplierPrefix}-${supplierConsecutive}`,
       comprador: userData?.name || "Usuario",
-      date: new Date(date),
+      date, // ✅ enviamos string YYYY-MM-DD
       items: items.map((i) => ({
         ...i,
         quantity: Number(i.quantity),
