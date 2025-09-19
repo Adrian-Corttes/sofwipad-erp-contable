@@ -55,6 +55,16 @@ const AppLayout = () => {
     }
   };
 
+  const viewNames = {
+    dashboard: "Panel de Control",
+    sales: "Ventas",
+    purchases: "Compras",
+    inventory: "Inventario",
+    reports: "Reportes",
+    thirdparties: "Clientes/Proveedores",
+    products: "Productos/Servicios",
+  };
+
   const roleNames = {
     Admin: "Administrador",
     Contador: "Contador",
@@ -83,7 +93,7 @@ const AppLayout = () => {
         </div>
         <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
           <NavLink view="dashboard" icon={icons.dashboard}>
-            Dashboard
+            Panel de Control
           </NavLink>
           <NavLink view="sales" icon={icons.sales}>
             Ventas
@@ -153,7 +163,7 @@ const AppLayout = () => {
       >
         <header className="bg-white shadow-sm h-16 flex items-center justify-between px-6">
           <h1 className="text-2xl font-semibold text-gray-800 capitalize">
-            {activeView}
+            {viewNames[activeView] || activeView}
           </h1>
         </header>
         <main className="flex-1 overflow-y-auto p-6">{renderContent()}</main>
