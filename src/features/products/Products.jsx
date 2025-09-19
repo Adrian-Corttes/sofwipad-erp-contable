@@ -8,6 +8,8 @@ import Spinner from "../../components/ui/Spinner";
 import Modal from "../../components/ui/Modal";
 import Input from "../../components/ui/Input";
 import Select from "../../components/ui/Select";
+import ErrorDisplay from "../../components/ui/ErrorDisplay";
+import SuccessDisplay from "../../components/ui/SuccessDisplay";
 
 const Products = () => {
   const { companyData } = useApp();
@@ -16,6 +18,9 @@ const Products = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
+
+  const [successMessage, setSuccessMessage] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null);
   const [form, setForm] = useState({
     type: "producto",
     code: "",
@@ -137,9 +142,14 @@ const Products = () => {
 
       setIsModalOpen(false);
       setEditingId(null);
+      setSuccessMessage(`Producto/Servicio ${editingId ? "actualizado" : "creado"} exitosamente.`);
+      setErrorMessage(null);
+      setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
       console.error("Error guardando producto/servicio", err);
-      alert("⚠️ Error guardando producto/servicio: " + err.message);
+      setErrorMessage("⚠️ Error guardando producto/servicio: " + err.message);
+      setSuccessMessage(null);
+      setTimeout(() => setErrorMessage(null), 5000);
     }
   };
 
@@ -155,14 +165,21 @@ const Products = () => {
       await deleteDoc(
         doc(db, `companies/${companyData.id}/products/${row.id}`)
       );
+      setSuccessMessage(`Producto/Servicio "${row.description}" eliminado exitosamente.`);
+      setErrorMessage(null);
+      setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
       console.error("Error eliminando producto/servicio", err);
-      alert("⚠️ Error eliminando: " + err.message);
+      setErrorMessage("⚠️ Error eliminando: " + err.message);
+      setSuccessMessage(null);
+      setTimeout(() => setErrorMessage(null), 5000);
     }
   };
 
   return (
     <div>
+      <SuccessDisplay message={successMessage} />
+      <ErrorDisplay message={errorMessage} />
       <div className="flex justify-between items-center mb-4">
         <input
           type="text"
