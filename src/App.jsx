@@ -1487,21 +1487,31 @@ const PurchaseModule = ({ setActiveView }) => {
   const [searchTerm, setSearchTerm] = useState("");
 
   // --- Función para formatear fecha ---
-  const formatInvoiceDate = (timestamp) => {
-    if (!timestamp) return "N/A";
-    const date = new Date(timestamp.seconds * 1000);
-    return date.toLocaleDateString("es-CO", {
-      timeZone: "America/Bogota",
-    });
+  const formatInvoiceDate = (dateValue) => {
+    if (!dateValue) return "N/A";
+
+    // Firestore Timestamp
+    if (dateValue?.seconds) {
+      const date = new Date(dateValue.seconds * 1000);
+      return date.toLocaleDateString("es-CO", { timeZone: "America/Bogota" });
+    }
+
+    // String YYYY-MM-DD
+    if (typeof dateValue === "string") {
+      const [y, m, d] = dateValue.split("-");
+      return `${d}/${m}/${y}`;
+    }
+
+    return "N/A";
   };
 
   // --- Normalizar fecha ---
   const normalizeDate = (dateInput) => {
     if (!dateInput) return null;
 
+    // 👉 Si es string "YYYY-MM-DD" lo convertimos a Date local
     if (typeof dateInput === "string") {
-      const [y, m, d] = dateInput.split("-");
-      return new Date(Number(y), Number(m) - 1, Number(d));
+      return new Date(dateInput + "T00:00:00");
     }
 
     if (dateInput instanceof Date) {
@@ -1562,7 +1572,6 @@ const PurchaseModule = ({ setActiveView }) => {
         id: doc.id,
         ...doc.data(),
       }));
-      // ✅ Filtrar solo proveedores
       const onlySuppliers = allThirdparties.filter(
         (t) =>
           (Array.isArray(t.type) && t.type.includes("proveedor")) ||
@@ -1631,7 +1640,7 @@ const PurchaseModule = ({ setActiveView }) => {
       );
       const newInvoiceRef = await addDoc(invoicesRef, {
         ...invoiceData,
-        date: normalizeDate(invoiceData.date), // 👈 corregido
+        date: normalizeDate(invoiceData.date), // 👈 corregido (local sin desfase)
         companyId: companyData.id,
         invoiceNumber,
         createdAt: serverTimestamp(),
@@ -1659,7 +1668,7 @@ const PurchaseModule = ({ setActiveView }) => {
       );
       await updateDoc(invoiceRef, {
         ...invoiceData,
-        date: normalizeDate(invoiceData.date), // 👈 corregido
+        date: normalizeDate(invoiceData.date), // 👈 corregido (local sin desfase)
         updatedAt: serverTimestamp(),
       });
       setEditingInvoice(null);
@@ -1769,9 +1778,7 @@ const PurchaseModule = ({ setActiveView }) => {
                   className="bg-white border-b hover:bg-gray-50"
                 >
                   <td className="px-6 py-4">
-                    {invoice.date?.seconds
-                      ? formatInvoiceDate(invoice.date)
-                      : "N/A"}
+                    {formatInvoiceDate(invoice.date)}
                   </td>
                   <td className="px-6 py-4 font-medium text-blue-600">
                     {invoice.invoiceNumber || "FC-SINID"}
@@ -1852,7 +1859,7 @@ const PurchaseModule = ({ setActiveView }) => {
         lastInvoiceNumber={lastInvoiceNumber}
       />
 
-      {/* Modal Detalle Factura (refactorizado) */}
+      {/* Modal Detalle Factura */}
       {isDetailOpen && selectedInvoice && (
         <InvoiceDetailModal
           isOpen={isDetailOpen}
@@ -3149,7 +3156,10 @@ const PurchaseFormModal = ({
   const [supplierId, setSupplierId] = useState("");
   const [date, setDate] = useState(() => {
     const today = new Date();
-    return today.toISOString().split("T")[0]; // ✅ corregido, sin timezoneOffset
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`; // ✅ siempre en local YYYY-MM-DD
   });
   const [supplierPrefix, setSupplierPrefix] = useState("FC");
   const [supplierConsecutive, setSupplierConsecutive] = useState("");
@@ -3205,13 +3215,18 @@ const PurchaseFormModal = ({
     if (initialData) {
       setTipoFactura(initialData.tipoFactura || "FC-1-Compra");
       setSupplierId(initialData.supplierId || "");
-      setDate(
-        initialData.date
-          ? new Date(initialData.date.seconds * 1000)
-              .toISOString()
-              .split("T")[0]
-          : date
-      );
+
+      // ✅ Ajuste: convertir la fecha a YYYY-MM-DD string sin UTC
+      if (initialData.date?.seconds) {
+        const d = new Date(initialData.date.seconds * 1000);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        setDate(`${y}-${m}-${day}`);
+      } else if (typeof initialData.date === "string") {
+        setDate(initialData.date);
+      }
+
       if (initialData.supplierInvoice) {
         const parts = initialData.supplierInvoice.split("-");
         setSupplierPrefix(parts[0] || "FC");
@@ -3221,7 +3236,7 @@ const PurchaseFormModal = ({
       setPaymentMethod(initialData.paymentMethod || "Efectivo");
       setObservaciones(initialData.observaciones || "");
     }
-  }, [initialData, date]);
+  }, [initialData]);
 
   // --- Cambios en ítems ---
   const handleItemChange = (index, field, value) => {
@@ -3310,7 +3325,7 @@ const PurchaseFormModal = ({
       supplierId,
       supplierInvoice: `${supplierPrefix}-${supplierConsecutive}`,
       comprador: userData?.name || "Usuario",
-      date, // ✅ enviamos string YYYY-MM-DD
+      date, // ✅ guardamos string YYYY-MM-DD
       items: items.map((i) => ({
         ...i,
         quantity: Number(i.quantity),
