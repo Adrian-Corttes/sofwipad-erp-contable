@@ -5,6 +5,7 @@ import {
   db,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   collection,
   addDoc,
   doc,
@@ -14,6 +15,7 @@ import {
 import Input from "../ui/Input";
 import Button from "../ui/Button";
 import ErrorDisplay from "../ui/ErrorDisplay";
+import SuccessDisplay from "../ui/SuccessDisplay";
 
 const AuthScreen = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -23,12 +25,15 @@ const AuthScreen = () => {
   const [companyName, setCompanyName] = useState("");
   const [nit, setNit] = useState("");
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setSuccessMessage("");
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
@@ -45,6 +50,7 @@ const AuthScreen = () => {
     }
     setLoading(true);
     setError("");
+    setSuccessMessage("");
     try {
       const companyRef = collection(db, "companies");
       const newCompanyDoc = await addDoc(companyRef, {
@@ -76,6 +82,24 @@ const AuthScreen = () => {
       setError(err.message);
     }
     setLoading(false);
+  };
+
+  const handlePasswordReset = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setSuccessMessage("");
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setSuccessMessage("Se ha enviado un correo de restablecimiento de contraseña a tu dirección de correo electrónico.");
+      setEmail("");
+      setShowPasswordReset(false);
+    } catch (err) {
+      setError(err.message);
+    }
+    setLoading(false);
+    setTimeout(() => setSuccessMessage(""), 5000);
+    setTimeout(() => setError(""), 5000);
   };
 
   return (
@@ -129,42 +153,70 @@ const AuthScreen = () => {
                 <hr />
               </>
             )}
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              label="Correo Electrónico"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              label="Contraseña"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            {!showPasswordReset ? (
+              <>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  label="Correo Electrónico"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  label="Contraseña"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </>
+            ) : (
+              <Input
+                id="emailReset"
+                name="emailReset"
+                type="email"
+                label="Correo Electrónico"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            )}
 
             <ErrorDisplay message={error} />
+            <SuccessDisplay message={successMessage} />
 
             <div>
-              <Button
-                type="submit"
-                variant="primary"
-                className="w-full"
-                disabled={loading}
-              >
-                {loading
-                  ? "Procesando..."
-                  : isLogin
-                  ? "Iniciar Sesión"
-                  : "Registrar Empresa"}
-              </Button>
+              {!showPasswordReset ? (
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-full"
+                  disabled={loading}
+                >
+                  {loading
+                    ? "Procesando..."
+                    : isLogin
+                    ? "Iniciar Sesión"
+                    : "Registrar Empresa"}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="primary"
+                  className="w-full"
+                  onClick={handlePasswordReset}
+                  disabled={loading}
+                >
+                  {loading ? "Enviando..." : "Enviar correo de restablecimiento"}
+                </Button>
+              )}
             </div>
           </form>
 
@@ -179,12 +231,26 @@ const AuthScreen = () => {
             </div>
 
             <div className="mt-6 text-center">
+              {!showPasswordReset && isLogin && (
+                <button
+                  onClick={() => {
+                    setShowPasswordReset(true);
+                    setError("");
+                    setSuccessMessage("");
+                  }}
+                  className="font-medium text-indigo-600 hover:text-indigo-800 hover:underline mr-4"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+              )}
               <button
                 onClick={() => {
                   setIsLogin(!isLogin);
                   setError("");
+                  setSuccessMessage("");
+                  setShowPasswordReset(false);
                 }}
-                className="font-medium text-indigo-600 hover:text-indigo-500"
+                className="font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
               >
                 {isLogin
                   ? "¿No tienes una cuenta? Regístrate"
