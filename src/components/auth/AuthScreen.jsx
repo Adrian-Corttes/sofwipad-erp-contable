@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import {
   auth,
@@ -91,7 +90,9 @@ const AuthScreen = () => {
     setSuccessMessage("");
     try {
       await sendPasswordResetEmail(auth, email);
-      setSuccessMessage("Se ha enviado un correo de restablecimiento de contraseña a tu dirección de correo electrónico.");
+      setSuccessMessage(
+        "Se ha enviado un correo de restablecimiento de contraseña a tu dirección de correo electrónico."
+      );
       setEmail("");
       setShowPasswordReset(false);
     } catch (err) {
@@ -197,7 +198,11 @@ const AuthScreen = () => {
                 <Button
                   type="submit"
                   variant="primary"
-                  className="w-full"
+                  className="w-full border border-indigo-600 text-indigo-600 font-semibold 
+             px-6 py-3 rounded-md 
+             transition duration-2000 ease-in-out
+             hover:bg-indigo-600 hover:text-white 
+             active:bg-indigo-700 active:text-white "
                   disabled={loading}
                 >
                   {loading
@@ -210,11 +215,17 @@ const AuthScreen = () => {
                 <Button
                   type="button"
                   variant="primary"
-                  className="w-full"
+                  className="w-full border border-indigo-600 text-indigo-600 font-semibold 
+             px-6 py-3 rounded-md 
+             transition duration-300 ease-in-out
+             hover:bg-indigo-600 hover:text-white 
+             active:bg-indigo-700 active:text-white"
                   onClick={handlePasswordReset}
                   disabled={loading}
                 >
-                  {loading ? "Enviando..." : "Enviar correo de restablecimiento"}
+                  {loading
+                    ? "Enviando..."
+                    : "Enviar correo de restablecimiento"}
                 </Button>
               )}
             </div>
